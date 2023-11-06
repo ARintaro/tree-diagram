@@ -1,5 +1,6 @@
 VIVADO_DIR = ./build/vivado
 VERILATOR_DIR = ./build/verilator
+TEST_DIR = ./build/test
 
 export PATH := $(PATH):$(abspath ./utils)
 
@@ -10,6 +11,10 @@ vivado:
 verilator:
 	mkdir -p $(VERILATOR_DIR)
 	mill -i __.runMain core.MakeVerilatorVerilog $(VERILATOR_DIR)
+
+test:
+	mkdir -p $(VERILATOR_DIR)
+	mill -i __.runMain core.MakeTest $(TEST_DIR)
 
 compile:
 	mill -i __.compile
