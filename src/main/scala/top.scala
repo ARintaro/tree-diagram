@@ -36,13 +36,23 @@ class Top extends Module {
   
 }
 
-class TestTop extends Module {
-  val io = IO(new Bundle {
-    val data = Output(UInt(4.W))
-  })
+class TestInter extends Bundle {
+  val in = Input(Bool())
+  val out = Output(Bool())
+  val test = Input(Bool())
+}
 
-  val test = RegInit(0.U(4.W))
-  test := test + 1.U
-  io.data := test
+class TestInner extends Module {
+  val io = IO(new TestInter())
+
+  io.out := !io.in && io.test
+}
+
+class TestTop extends Module {
+  val io = IO(new TestInter())
+
+  val test = Module(new TestInner())
+  
+  io <> test.io
 }
 

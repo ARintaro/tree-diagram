@@ -34,9 +34,11 @@ object InsConfig {
 }
 
 object CacheConfig {
-  val icache = new IcacheConfig {
-    val wayNum: Int = 2
-    val cacheLineSize: Int = 4
-    val cacheLineNum: Int = 256
-  }
+  val icache = new IcacheConfig(2, 4, 256)
+}
+
+object FrontendConfig {
+  val fetchQueueSize = 16
+
+  val decoderNum = 3
 }

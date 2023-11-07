@@ -21,6 +21,14 @@ class BusSlaveInterface extends Bundle {
   val dataWrite = Input(UInt(BusConfig.DATA_WIDTH))
   // 读出数据
   val dataRead = Output(UInt(BusConfig.DATA_WIDTH))
+
+  def master_turn_off() = {
+    stb := false.B
+    addr := DontCare
+    dataBytesSelect := DontCare
+    dataMode := DontCare
+    dataWrite := DontCare
+  }
 }
 
 object BusSlaveInterface {
@@ -30,4 +38,6 @@ object BusSlaveInterface {
 object BusMasterInterface {
   def apply() = Flipped(new BusSlaveInterface)
 
+  
+  
 }

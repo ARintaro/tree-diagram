@@ -32,4 +32,7 @@ class TranslationLookasideBuffer extends Module {
   f2_io.paddr.valid := state && !ctrlIO.clear
   f2_io.paddr.bits := lastVaddr
   f2_io.vaddr := lastVaddr
+
+  // 直接地址转换，不访问sram
+  sramIO.master_turn_off()
 }

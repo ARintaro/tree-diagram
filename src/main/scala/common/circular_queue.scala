@@ -52,6 +52,7 @@ class CircularQueue[T <: Data](gen : T, size : Int, enqPortNum : Int, deqPortNum
   tail := tail + PopCount(doEnq)
 
   require(isPow2(size))
+  
 
 }
  

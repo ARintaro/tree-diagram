@@ -8,16 +8,17 @@ import chisel3.util.Mux1H
 import chisel3.util.UIntToOH
 import chisel3.util.Cat
 import chisel3.util.Valid
+import dataclass.data
 
-abstract class IcacheConfig {
+class IcacheConfig(_wayNum : Int, _cacheLineSize : Int, _cacheLineNum : Int) {
   // 组相连路数
-  val wayNum : Int
+  val wayNum = _wayNum
 
   // 单个 Cacheline 容纳指令的数量（需要为2的次幂）
-  val cacheLineSize : Int
+  val cacheLineSize = _cacheLineSize
 
   // Cacheline 的数量（需要为2的次幂）
-  val cacheLineNum : Int
+  val cacheLineNum = _cacheLineNum
 
   // 指令宽度(bit)
   val insWidth = InsConfig.INS_WIDTH.get
@@ -48,7 +49,7 @@ abstract class IcacheConfig {
 
   // tagRam返回数据中，构成有效位的部分
   val tagValidBegin = 0
-  val tagValidEnd = log2Ceil(cacheLineSize) - 1
+  val tagValidEnd = cacheLineSize - 1
 
   // tagRam返回数据中，构成tag的部分
   val tagTagBegin = tagValidEnd + 1
@@ -123,13 +124,16 @@ class InstructionCache(config : IcacheConfig) extends Module {
   // flush 流水线冲刷请求，在这里实际上是让上个周期发往bram的请求失效
   // clear 清空指令缓存，实际上就是清空tagRam
   // 拉高后icache会进入清理状态，需要很多个周期
-  val ctrlIO = IO(new CtrlInterface)
+  val ctrlIO = IO(Input(new CtrlInterface))
 
   val sramIO = IO(BusMasterInterface())
   
   val tagRam = Module(new Bram("IcacheTagRam", config.tagRamWriteWidth, config.cacheLineNum * config.wayNum, config.tagRamReadWidth * config.wayNum))
   val dataRam = Module(new Bram("IcacheDataRam", config.dataRamWriteWidth, config.dataRamWriteDepth * config.wayNum, config.dataRamReadWidth * config.wayNum))
 
+  // 默认关闭写请求
+  tagRam.io.master_turn_off_write()
+  dataRam.io.master_turn_off_write()
   
   {
     // 处理这周期新的请求
@@ -143,12 +147,17 @@ class InstructionCache(config : IcacheConfig) extends Module {
   val missed = WireInit(false.B)
   // 查询的物理地址
   val sramAddr = Wire(UInt(BusConfig.ADDR_WIDTH))
+  sramAddr := DontCare
   // 当sram查询返回时，写入tag的地址
   val writeTagAddr = Wire(UInt(tagRam.config.writeAddrWidth.W))
+  writeTagAddr := DontCare
   // 当sram查询返回时，写入tag的数据
   val writeTagData = Wire(UInt(tagRam.config.writeWidth.W))
+  writeTagData := DontCare
   // 当sram查询返回时，写入data的地址
   val writeDataAddr = Wire(UInt(dataRam.config.writeAddrWidth.W))
+  writeDataAddr := DontCare
+  
 
   {
     // 处理上个周期读出来的tag和data
@@ -200,7 +209,7 @@ class InstructionCache(config : IcacheConfig) extends Module {
       } .otherwise {
         // 缓存未命中
         missed := true.B
-        sramAddr := f2_io.paddr
+        sramAddr := f2_io.paddr.bits
 
         writeTagAddr := config.GetTagRamWriteAddr(index, way)
 
@@ -216,21 +225,22 @@ class InstructionCache(config : IcacheConfig) extends Module {
 
 
   {
-    sramIO.dataWrite := DontCare
-    sramIO.stb := false.B
+    // 默认关闭sram
+    sramIO.master_turn_off()
+    
 
     // 处理sram请求
     val busy = RegInit(false.B)
     val acked = RegInit(false.B)
 
     // 查询的物理地址
-    val sramAddrReg = Wire(UInt(BusConfig.ADDR_WIDTH))
+    val sramAddrReg = Reg(UInt(BusConfig.ADDR_WIDTH))
     // 当sram查询返回时，写入tag的地址
-    val writeTagAddrReg = Wire(UInt(tagRam.config.writeAddrWidth.W))
+    val writeTagAddrReg = Reg(UInt(tagRam.config.writeAddrWidth.W))
     // 当sram查询返回时，写入tag的数据
-    val writeTagDataReg = Wire(UInt(tagRam.config.writeWidth.W))
+    val writeTagDataReg = Reg(UInt(tagRam.config.writeWidth.W))
     // 当sram查询返回时，写入data的地址
-    val writeDataAddrReg = Wire(UInt(dataRam.config.writeAddrWidth.W))
+    val writeDataAddrReg = Reg(UInt(dataRam.config.writeAddrWidth.W))
 
 
     when (busy) {

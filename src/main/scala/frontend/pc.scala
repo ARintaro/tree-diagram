@@ -3,7 +3,7 @@ package core
 import chisel3._
 import chisel3.util._
 
-class ProgramCounter(inputNum: Int, startAddr: Int) extends Module {
+class ProgramCounter(inputNum: Int, startAddr: BigInt) extends Module {
   val io = IO(new Bundle {
     // 注意，这里越后面的优先级越高
     val reqs = Vec(inputNum, Flipped(Valid(UInt(BusConfig.ADDR_WIDTH))))

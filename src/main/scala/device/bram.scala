@@ -5,12 +5,12 @@ import chisel3.util._
 import chisel3.experimental._
 import scala.collection.mutable
 
-abstract class BramConfig {
-  val writeWidth : Int
-  val writeDepth : Int
-  val readWidth : Int
-  val totalSpace : Int
-  val readDepth : Int
+class BramConfig(_writeWidth : Int, _writeDepth : Int, _readWidth : Int) {
+  val writeWidth = _writeWidth
+  val writeDepth = _writeDepth
+  val readWidth = _readWidth
+  val totalSpace = writeWidth * writeDepth
+  val readDepth = totalSpace / readWidth 
 
   val readNum = readWidth / writeWidth
 
@@ -44,14 +44,7 @@ object BramConfig {
 }
 
 class BramInterface(_writeWidth : Int, _writeDepth : Int, _readWidth : Int) extends Bundle {
-  val config = new BramConfig {
-    val writeWidth = _writeWidth
-    val writeDepth = _writeDepth
-    val readWidth = _readWidth
-    val totalSpace = writeWidth * writeDepth
-    val readDepth = totalSpace / readWidth 
-  }
-  
+  val config = new BramConfig(_writeWidth, _writeDepth, _readWidth)
 
   val writeEnable = Output(Bool())
   val writeAddr = Output(UInt(log2Ceil(config.writeDepth).W))
@@ -59,6 +52,12 @@ class BramInterface(_writeWidth : Int, _writeDepth : Int, _readWidth : Int) exte
 
   val readAddr = Output(UInt(log2Ceil(config.readDepth).W))
   val readData = Input(UInt(config.readWidth.W))
+
+  def master_turn_off_write() : Unit = {
+    writeEnable := false.B
+    writeAddr := DontCare
+    writeData := DontCare
+  }
 }
 
 class SimpleDualPortBram(name : String, config : BramConfig) extends BlackBox {

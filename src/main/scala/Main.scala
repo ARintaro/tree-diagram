@@ -9,7 +9,7 @@ object MakeVivadoVerilog {
     // circt.stage.ChiselStage.emitSystemVerilogFile(new Test, Array("--target-dir", args(0)))
     GenConfig.verilator = false
 
-    circt.stage.ChiselStage.emitSystemVerilogFile(new BramTester("test_bram"), Array("--target-dir", args(0)))
+    circt.stage.ChiselStage.emitSystemVerilogFile(new IfuTestTop, Array("--target-dir", args(0)))
 
 
     for ((name, config) <- BramConfig.map) {
@@ -33,7 +33,7 @@ object MakeVerilatorVerilog {
 object MakeTest {
   def main(args: Array[String]): Unit = {
     GenConfig.verilator = true
-    circt.stage.ChiselStage.emitSystemVerilogFile(new TestTop, Array("--target-dir", args(0)))
+    circt.stage.ChiselStage.emitSystemVerilogFile(new IfuTestTop, Array("--target-dir", args(0)))
 
   }
 }
