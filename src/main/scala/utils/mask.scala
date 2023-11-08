@@ -1,6 +1,7 @@
 package core
 
 import chisel3._
+import chisel3.util.PriorityEncoderOH
 
 object MaskUtil {
   def GetPrefixMask(width: Int)(prefixLength: UInt): UInt = {
@@ -30,5 +31,17 @@ object MaskUtil {
       leftShifted & ~(allOne << tail),
       leftShifted | (allOne >> (size.U - tail))
     )(size - 1, 0)
+  }
+
+  def SelectFirstN(n : Int)(in : UInt) = {
+    val sels = Wire(Vec(n, UInt(in.getWidth.W)))
+    var mask = in
+
+    for (i <- 0 until n) {
+      sels(i) := PriorityEncoderOH(mask)
+      mask = mask & ~sels(i)
+    }
+
+    sels
   }
 }

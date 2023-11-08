@@ -1,6 +1,7 @@
 package core
 
 import chisel3._
+import chisel3.util.log2Ceil
 
 object GenConfig {
   var verilator = false
@@ -41,4 +42,14 @@ object FrontendConfig {
   val fetchQueueSize = 16
 
   val decoderNum = 3
+}
+
+object BackendConfig {
+  val physicalRegNum = 64
+  val robSize = 32
+
+  val pregIdxWidth = log2Ceil(physicalRegNum).W
+  val robIdxWidth = log2Ceil(robSize).W
+
+  val maxCommitsNum = 3 
 }

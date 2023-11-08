@@ -38,21 +38,26 @@ class Top extends Module {
 
 class TestInter extends Bundle {
   val in = Input(Bool())
-  val out = Output(Bool())
-  val test = Input(Bool())
+  val out = Output(UInt(3.W))
 }
 
-class TestInner extends Module {
-  val io = IO(new TestInter())
-
-  io.out := !io.in && io.test
-}
 
 class TestTop extends Module {
   val io = IO(new TestInter())
 
-  val test = Module(new TestInner())
-  
-  io <> test.io
+  var state = Wire(Vec(5, UInt(3.W)))
+  state.foreach(_ := 0.U)
+
+  for (i <- 0 until 5) {
+    val newState = Wire(Vec(5, UInt(3.W)))
+    for (j <- 0 until 5) {
+      newState(j) := state(j) + 1.U
+    }
+
+    state = newState
+  }
+
+  io.out := state(1)
+
 }
 
