@@ -181,8 +181,9 @@ class InstructionCache(config : IcacheConfig) extends Module {
       // (cacheLineSize, cacheLineSize + tagSize - 1)为tag位
       val tags = rawTags.map(_(config.tagTagEnd, config.tagTagBegin))
       val valids = rawTags.map(_(config.tagValidEnd, config.tagValidBegin))
-      val datas = dataRam.io.readData.asTypeOf(Vec(config.wayNum, Vec(config.cacheLineSize, UInt(config.dataRamReadWidth.W))))
+      val datas = dataRam.io.readData.asTypeOf(Vec(config.wayNum, Vec(config.cacheLineSize, UInt(config.insWidth.W))))
 
+      //wire?
       val tagEqual = VecInit(tags.map(_ === targetTag))
       val anyHit = tagEqual.reduce(_ || _)
       val select = Mux(anyHit, tagEqual.asUInt, UIntToOH(randomWay))

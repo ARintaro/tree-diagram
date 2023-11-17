@@ -27,7 +27,7 @@ class FindPregRequest extends Bundle {
 
 class CommitPregRequest extends Bundle {
   val valid = Input(Bool())
-  
+
   // commit时
   // 将映射关系写入到art中，让逻辑寄存器对应的上一个物理寄存器重新加入freeList里
   val lregIdx = Input(UInt(5.W))
@@ -42,7 +42,7 @@ class PhysicalRegisterFile extends Module {
   })
 
   val ctrlIO = IO(new Bundle {
-	val recover = Input(Bool())
+    val recover = Input(Bool())
   })
 
   val pregs = RegInit(
@@ -65,14 +65,16 @@ class PhysicalRegisterFile extends Module {
     // 从art恢复出freeList与srt
     srt := art
     sfree := afree
-	io.news.foreach(x => {
-	  x.success := false.B
-	  x.pregIdx := DontCare
-	})
-	io.finds.foreach(x => x.foreach(y => {
-	  y.success := false.B
-	  y.preg := DontCare
-	}))
+    io.news.foreach(x => {
+      x.success := false.B
+      x.pregIdx := DontCare
+    })
+    io.finds.foreach(x =>
+      x.foreach(y => {
+        y.success := false.B
+        y.preg := DontCare
+      })
+    )
 
     recovering := false.B
   }.otherwise {
@@ -93,7 +95,7 @@ class PhysicalRegisterFile extends Module {
         val finds = io.finds(i)
         for (j <- 0 until 2) {
           finds(j).preg := curRT(finds(j).lregIdx)
-		  finds(j).success := true.B
+          finds(j).success := true.B
         }
 
         // 更新curRT与curFree
@@ -104,10 +106,10 @@ class PhysicalRegisterFile extends Module {
 
         val newRT = Wire(Vec(32, new RenameTableEntry))
         newRT := curRT
-        when (req.valid) {
-		  newRT(selectIdx).valid := true.B
+        when(req.valid) {
+          newRT(selectIdx).valid := true.B
           newRT(selectIdx).pregIdx := selectIdx
-		}
+        }
 
         req.success := curFree.orR
         req.pregIdx := selectIdx
@@ -125,49 +127,48 @@ class PhysicalRegisterFile extends Module {
     // 处理commit
 
     {
-	  // 当前重命名表
+      // 当前重命名表
       var curRT = Wire(Vec(32, new RenameTableEntry))
       // 当前freeList
       var curSFree = Wire(UInt(BackendConfig.physicalRegNum.W))
-	  var curAFree = Wire(UInt(BackendConfig.physicalRegNum.W))
-
+      var curAFree = Wire(UInt(BackendConfig.physicalRegNum.W))
 
       curRT := art
       curSFree := sfree
-	  curAFree := afree
+      curAFree := afree
 
-	  for (i <- 0 until BackendConfig.maxCommitsNum) {
-		val req = io.commits(i)
-		
-		val lastEntry = curRT(req.lregIdx)
-		val lastPregOH = Mux(lastEntry.valid && req.valid, UIntToOH(lastEntry.pregIdx), 0.U)
-		val curPregOH = Mux(req.valid, UIntToOH(req.pregIdx), 0.U)
+      for (i <- 0 until BackendConfig.maxCommitsNum) {
+        val req = io.commits(i)
 
-		// 把之前的物理寄存器重新加入SFree
-		curSFree = curSFree | lastPregOH
-		// 把之前的物理寄存器加入AFree，把现在的物理寄存器从AFree里删掉
-		curAFree = curAFree | lastPregOH & ~curPregOH
+        val lastEntry = curRT(req.lregIdx)
+        val lastPregOH =
+          Mux(lastEntry.valid && req.valid, UIntToOH(lastEntry.pregIdx), 0.U)
+        val curPregOH = Mux(req.valid, UIntToOH(req.pregIdx), 0.U)
 
+        // 把之前的物理寄存器重新加入SFree
+        curSFree = curSFree | lastPregOH
+        // 把之前的物理寄存器加入AFree，把现在的物理寄存器从AFree里删掉
+        curAFree = curAFree | lastPregOH & ~curPregOH
 
-		// 写入新的映射关系
-		val newRT = Wire(Vec(32, new RenameTableEntry))
-		newRT := curRT
-		when (req.valid) {
+        // 写入新的映射关系
+        val newRT = Wire(Vec(32, new RenameTableEntry))
+        newRT := curRT
+        when(req.valid) {
           newRT(req.lregIdx).valid := true.B
-		  newRT(req.lregIdx).pregIdx := req.pregIdx
-		}
+          newRT(req.lregIdx).pregIdx := req.pregIdx
+        }
 
-		curRT = newRT
-	  }
+        curRT = newRT
+      }
 
-	  // 最终结果写回
-	  art := curRT
-	  sfree := curSFree
-	  afree := curAFree
-	}
+      // 最终结果写回
+      art := curRT
+      sfree := curSFree
+      afree := curAFree
+    }
 
-	// 回滚信号
-	recovering := ctrlIO.recover
+    // 回滚信号
+    recovering := ctrlIO.recover
   }
 
 }

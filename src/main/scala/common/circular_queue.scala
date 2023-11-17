@@ -34,7 +34,7 @@ class CircularQueue[T <: Data](
     val count = tail - head
 
     val readyPrefixMask =
-      MaskUtil.GetPrefixMask(sizeWidth.get)(count)(enqPortNum - 1, 0)
+      MaskUtil.GetPrefixMask(size)(count)(enqPortNum - 1, 0)
     io.enq.zipWithIndex.foreach { case (enq, i) =>
       enq.ready := readyPrefixMask(i)
     }
