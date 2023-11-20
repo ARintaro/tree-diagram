@@ -46,10 +46,11 @@ object FrontendConfig {
 
 object BackendConfig {
   val physicalRegNum = 64
-  val robSize = 32
+  val robSize = 16
 
   val pregIdxWidth = log2Ceil(physicalRegNum).W
   val robIdxWidth = log2Ceil(robSize).W
 
   val maxCommitsNum = 3 
+
 }

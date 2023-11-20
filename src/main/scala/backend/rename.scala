@@ -15,13 +15,11 @@ class NewPregRequest extends Bundle {
 
   // 返回的物理寄存器下标
   val pregIdx = Output(UInt(BackendConfig.pregIdxWidth))
-  val success = Output(Bool())
 }
 
 class FindPregRequest extends Bundle {
   val lregIdx = Input(UInt(5.W))
 
-  val success = Output(Bool())
   val preg = Output(new RenameTableEntry())
 }
 
@@ -34,10 +32,19 @@ class CommitPregRequest extends Bundle {
   val pregIdx = Input(UInt(BackendConfig.pregIdxWidth))
 }
 
+class RenameRequests extends Bundle {
+  // 重命名请求
+  val news = Vec(FrontendConfig.decoderNum, new NewPregRequest)
+  val finds = Vec(FrontendConfig.decoderNum, Vec(2, new FindPregRequest))
+  // 重命名请求是否成功
+  val succ = Output(Bool())
+}
+
 class RenameTable extends Module {
   val io = IO(new Bundle {
-    val news = Vec(FrontendConfig.decoderNum, new NewPregRequest)
-    val finds = Vec(FrontendConfig.decoderNum, Vec(2, new FindPregRequest))
+    val renames = new RenameRequests
+
+    // 提交请求
     val commits = Vec(BackendConfig.maxCommitsNum, new CommitPregRequest)
   })
 
@@ -48,6 +55,7 @@ class RenameTable extends Module {
   // speculative rename table
   val srt = RegInit(VecInit(Seq.fill(32)(0.U.asTypeOf(new RenameTableEntry))))
   // speculative preg free list
+  // 如果为1表示已经被占用
   val sfree = RegInit(0.U(BackendConfig.physicalRegNum.W))
 
   // arch rename table
@@ -61,13 +69,11 @@ class RenameTable extends Module {
     // 从art恢复出freeList与srt
     srt := art
     sfree := afree
-    io.news.foreach(x => {
-      x.success := false.B
+    io.renames.news.foreach(x => {
       x.pregIdx := DontCare
     })
-    io.finds.foreach(x =>
+    io.renames.finds.foreach(x =>
       x.foreach(y => {
-        y.success := false.B
         y.preg := DontCare
       })
     )
@@ -77,6 +83,8 @@ class RenameTable extends Module {
     // 处理news和finds
 
     {
+      // 要么全部失败，要么全部成功
+
       // 当前重命名表
       var curRT = Wire(Vec(32, new RenameTableEntry))
       // 当前freeList
@@ -91,29 +99,26 @@ class RenameTable extends Module {
       // 按指令顺序更新
       for (i <- 0 until FrontendConfig.decoderNum) {
         // 先处理Find，避免读写逻辑寄存器相同的情况
-        val finds = io.finds(i)
+        val finds = io.renames.finds(i)
         for (j <- 0 until 2) {
           finds(j).preg := curRT(finds(j).lregIdx)
-          finds(j).success := !curFailed
         }
 
-        val req = io.news(i)
+        val req = io.renames.news(i)
         // 更新目前的失败状态
-        curFailed = curFailed || (req.valid && !curFree.orR)
+        curFailed = curFailed || curFree.andR
         // 更新curRT与curFree
-        val update = req.valid && !curFailed
 
-        val select = Mux(update, PriorityEncoderOH(curFree), 0.U)
+        val select = PriorityEncoderOH(curFree)
         val selectIdx = OHToUInt(select)
 
         val newRT = Wire(Vec(32, new RenameTableEntry))
         newRT := curRT
-        when(update) {
+        when(req.valid) {
           newRT(selectIdx).valid := true.B
           newRT(selectIdx).pregIdx := selectIdx
         }
 
-        req.success := !req.valid || update
         req.pregIdx := selectIdx
 
         // 注意这里是 "等于号"
@@ -121,9 +126,14 @@ class RenameTable extends Module {
         curRT = newRT
       }
 
+      val succ = !curFailed
+
+      io.renames.succ := succ
       // 最终结果写回寄存器
-      srt := curRT
-      sfree := curFree
+      when(succ) {
+        srt := curRT
+        sfree := curFree
+      }
     }
 
     // 处理commit
@@ -172,5 +182,23 @@ class RenameTable extends Module {
     // 回滚信号
     recovering := ctrlIO.recover
   }
+
+}
+
+class RenameUnit extends Module {
+  val io = IO(new Bundle {
+    val in = Vec(FrontendConfig.decoderNum, Input(new DecodedInstruction))
+    val ready = Output(Bool())
+
+
+    val out = Vec(FrontendConfig.decoderNum, Output(new PipelineInstruction))
+  })
+
+  val renameTableIO = IO(Flipped(new RenameRequests))
+
+  val ctrlIO = IO(new Bundle {
+    val flush = Input(Bool())
+  })
+
 
 }
