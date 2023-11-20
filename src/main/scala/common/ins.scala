@@ -45,12 +45,13 @@ trait InstructionConstants {
 
   // 跳转指令编码
   val BRU_WIDTH = 3.W
-  val BRU_EQ = 0.U(BRU_WIDTH)
-  val BRU_NE = 1.U(BRU_WIDTH)
-  val BRU_LT = 2.U(BRU_WIDTH)
-  val BRU_GE = 3.U(BRU_WIDTH)
-  val BRU_LTU = 4.U(BRU_WIDTH)
-  val BRU_GEU = 5.U(BRU_WIDTH)
+  val BRU_NONE = 0.U(BRU_WIDTH)
+  val BRU_EQ = 1.U(BRU_WIDTH)
+  val BRU_NE = 2.U(BRU_WIDTH)
+  val BRU_LT = 3.U(BRU_WIDTH)
+  val BRU_GE = 4.U(BRU_WIDTH)
+  val BRU_LTU = 5.U(BRU_WIDTH)
+  val BRU_GEU = 6.U(BRU_WIDTH)
 
   // 立即数类型
   val IMMT_WIDTH = 3.W
