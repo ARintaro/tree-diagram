@@ -63,6 +63,11 @@ class IcacheConfig(_wayNum : Int, _cacheLineSize : Int, _cacheLineNum : Int) {
     return (((index << log2Ceil(wayNum)) + way) << log2Ceil(cacheLineSize)) + cachelineIndex
   }
 
+  def Print() = {
+    println(s"addrTagBegin: $addrTagBegin")
+    println(s"addrTagEnd: $addrTagEnd")
+  }
+
 
   // 一个指令四字节，起始地址(1, 0)位一定为0
   // 一个cacheLine会存储 'cacheLineSize'  条指令
@@ -128,12 +133,15 @@ class InstructionCache(config : IcacheConfig) extends Module {
 
   val sramIO = IO(BusMasterInterface())
   
-  val tagRam = Module(new Bram("IcacheTagRam", config.tagRamWriteWidth, config.cacheLineNum * config.wayNum, config.tagRamReadWidth * config.wayNum))
-  val dataRam = Module(new Bram("IcacheDataRam", config.dataRamWriteWidth, config.dataRamWriteDepth * config.wayNum, config.dataRamReadWidth * config.wayNum))
+  val tagRam = Module(new Bram("IcacheTagRam", config.tagRamWriteWidth, config.cacheLineNum * config.wayNum, config.tagRamReadWidth * config.wayNum, true))
+  val dataRam = Module(new Bram("IcacheDataRam", config.dataRamWriteWidth, config.dataRamWriteDepth * config.wayNum, config.dataRamReadWidth * config.wayNum, false))
 
   // 默认关闭写请求
   tagRam.io.master_turn_off_write()
   dataRam.io.master_turn_off_write()
+
+  tagRam.ctrlIO.clear := ctrlIO.clear
+  dataRam.ctrlIO.clear := ctrlIO.clear
   
   {
     // 处理这周期新的请求
@@ -171,7 +179,7 @@ class InstructionCache(config : IcacheConfig) extends Module {
     randomWay := randomWay + 1.U
 
     // 物理地址有效、且没有冲刷请求时执行检索
-    when (f2_io.paddr.valid && !ctrlIO.flush) {
+    when (f2_io.paddr.valid && !ctrlIO.flush && tagRam.ctrlIO.valid && dataRam.ctrlIO.valid) {
       
       val targetTag = f2_io.paddr.bits(config.addrTagEnd, config.addrTagBegin)
       val index = f2_io.paddr.bits(config.addrIndexEnd, config.addrIndexBegin)
@@ -181,8 +189,9 @@ class InstructionCache(config : IcacheConfig) extends Module {
       // (cacheLineSize, cacheLineSize + tagSize - 1)为tag位
       val tags = rawTags.map(_(config.tagTagEnd, config.tagTagBegin))
       val valids = rawTags.map(_(config.tagValidEnd, config.tagValidBegin))
-      val datas = dataRam.io.readData.asTypeOf(Vec(config.wayNum, Vec(config.cacheLineSize, UInt(config.dataRamReadWidth.W))))
-
+      val datas = dataRam.io.readData.asTypeOf(Vec(config.wayNum, Vec(config.cacheLineSize, UInt(config.insWidth.W))))
+      // 80000  0001
+      //wire?
       val tagEqual = VecInit(tags.map(_ === targetTag))
       val anyHit = tagEqual.reduce(_ || _)
       val select = Mux(anyHit, tagEqual.asUInt, UIntToOH(randomWay))
@@ -205,7 +214,7 @@ class InstructionCache(config : IcacheConfig) extends Module {
       when (anyHit && hitValid(cachelineIndex)) {
         // 缓存命中
         f2_io.valid := (hitValid >> cachelineIndex).asTypeOf(Vec(config.cacheLineSize, Bool()))
-        f2_io.ins := (hitData.asUInt >> (cachelineIndex << log2Ceil(config.dataRamWriteWidth))).asTypeOf(Vec(config.cacheLineSize, UInt(config.dataRamReadWidth.W)))
+        f2_io.ins := (hitData.asUInt >> (cachelineIndex << log2Ceil(config.dataRamWriteWidth))).asTypeOf(Vec(config.cacheLineSize, UInt(config.insWidth.W)))
       } .otherwise {
         // 缓存未命中
         missed := true.B
@@ -213,7 +222,7 @@ class InstructionCache(config : IcacheConfig) extends Module {
 
         writeTagAddr := config.GetTagRamWriteAddr(index, way)
 
-        val newValid = Mux(anyHit, hitValid | (1.U(config.cacheLineSize.W) << cachelineIndex), 1.U(config.cacheLineSize.W) << cachelineIndex)
+        val newValid = Mux(anyHit, hitValid | (1.U(config.cacheLineSize.W) << cachelineIndex), 1.U(config.cacheLineSize.W) << cachelineIndex)(config.cacheLineSize - 1, 0)
         writeTagData := Cat(targetTag, newValid)
 
         writeDataAddr := config.GetDataRamWriteAddr(index, way, cachelineIndex)
@@ -264,6 +273,7 @@ class InstructionCache(config : IcacheConfig) extends Module {
         dataRam.io.writeEnable := true.B
 
         acked := false.B
+        missed := false.B
       }
 
       when (missed) {

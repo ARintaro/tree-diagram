@@ -19,9 +19,10 @@ class CircularQueue[T <: Data](
   })
 
   val ctrlIO = IO(new Bundle {
-    val valid = Input(Bool())
-    val count = Input(UInt(sizeWidth))
-    val newData = Input(Vec(size, gen))
+    // val valid = Input(Bool())
+    // val count = Input(UInt(sizeWidth))
+    // val newData = Input(Vec(size, gen))
+    val flush = Input(Bool())
   })
 
   val head = RegInit(0.U(sizeWidth))
@@ -29,12 +30,12 @@ class CircularQueue[T <: Data](
 
   val ram = RegInit(VecInit(Seq.fill(size)(0.U.asTypeOf(gen))))
 
-  when(!ctrlIO.valid) {
+  when(!ctrlIO.flush) {
     // 补码，会自动warpAround
     val count = tail - head
 
     val readyPrefixMask =
-      MaskUtil.GetPrefixMask(sizeWidth.get)(count)(enqPortNum - 1, 0)
+      MaskUtil.GetPrefixMask(size)(count)(enqPortNum - 1, 0)
     io.enq.zipWithIndex.foreach { case (enq, i) =>
       enq.ready := readyPrefixMask(i)
     }
@@ -66,9 +67,18 @@ class CircularQueue[T <: Data](
     tail := tail + PopCount(doEnq)
   
   }.otherwise {
-    head := 0.U
-    tail := ctrlIO.count
-    ram := ctrlIO.newData
+    tail := head
+    io.enq.foreach(enq => {
+      enq.ready := false.B
+      enq.valid := DontCare
+      enq.bits := DontCare
+    })
+    io.deq.foreach(deq => {
+      deq.valid := false.B
+      deq.ready := DontCare
+      deq.bits := 0.U.asTypeOf(gen)
+    })
+    
   }
 
   require(isPow2(size))

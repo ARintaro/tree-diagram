@@ -31,7 +31,7 @@ class PreDecoder extends Module {
   io.newVaddr := io.vaddr + 4.U
 
   val immTypeJ =
-    Cat(data(31), data(19, 12), data(20), data(30, 25), data(24, 21), 0.U(1.W))
+    Cat(Fill(12, data(31)), data(19, 12), data(20), data(30, 25), data(24, 21), 0.U(1.W))
   val immTypeI = Cat(Fill(21, data(31)), data(30, 25), data(24, 21), data(20))
   val immTypeB =
     Cat(Fill(20, data(31)), data(7), data(30, 25), data(11, 8), 0.U(1.W))
@@ -46,7 +46,7 @@ class PreDecoder extends Module {
     }
     is(InsConfig.Opcode.branch) {
       io.jumpType := JumpType.branch
-      io.newVaddr := io.vaddr + immTypeB
+      // io.newVaddr := io.vaddr + immTypeB
     }
   }
 

@@ -32,6 +32,8 @@ class InstructionFetchUnit extends Module {
     )
   )
 
+  //暂时不处理flush
+  fetchQueue.ctrlIO.flush := false.B
   tlb.ctrlIO.clear := ctrlIO.clearTLB
   icache.ctrlIO.clear := ctrlIO.clearIcache
 
