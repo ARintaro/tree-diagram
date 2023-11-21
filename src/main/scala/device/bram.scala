@@ -77,11 +77,20 @@ class SimpleDualPortBram(name : String, config : BramConfig) extends BlackBox {
 
 
 
-class Bram(name : String, writeWidth : Int, writeDepth : Int, readWidth : Int) extends Module {
+class Bram(name : String, writeWidth : Int, writeDepth : Int, readWidth : Int, clearOnInit: Boolean) extends Module {
   val io = IO(Flipped(new BramInterface(writeWidth, writeDepth, readWidth)))
+  val ctrlIO = IO(new Bundle {
+    val clear = Input(Bool())
+    val valid = Output(Bool())
+  })
+  //当清除后valid会设为true
   val config = io.config
+  val clearBram = RegInit(clearOnInit.B)
 
   if (GenConfig.verilator) {
+    ctrlIO.valid := true.B
+    val bramIndex = RegInit(0.U(log2Ceil(writeDepth).W))
+
     val mem = SyncReadMem(config.writeDepth, UInt(config.writeWidth.W))
 
     val readNum = config.readNum
@@ -99,7 +108,26 @@ class Bram(name : String, writeWidth : Int, writeDepth : Int, readWidth : Int) e
     when (io.writeEnable) {
       mem.write(io.writeAddr, io.writeData)
     }
+
+    when(ctrlIO.clear) {
+      clearBram := true.B
+    }
+
+    when(clearBram || ctrlIO.clear) {
+      ctrlIO.valid := false.B
+      when(bramIndex =/= writeDepth.U - 1.U) {
+        mem.write(bramIndex, 0.U)
+        bramIndex := bramIndex + 1.U
+      } .elsewhen(bramIndex === writeDepth.U - 1.U) {
+        clearBram := false.B
+        bramIndex := 0.U
+      }
+    }
   } else {
+    //TODO:加入相似设置
+    //ctrlIO.valid := false.B
+    ctrlIO.valid := true.B
+    val bramIndex = RegInit(0.U(log2Ceil(writeDepth).W))
     BramConfig.map.update(name, config)
 
     val bram = Module(new SimpleDualPortBram(name, io.config))
@@ -111,26 +139,39 @@ class Bram(name : String, writeWidth : Int, writeDepth : Int, readWidth : Int) e
     bram.io.clkb := clock
     bram.io.addrb := io.readAddr
     io.readData := bram.io.doutb
+
+    when(clearBram || ctrlIO.clear) {
+      ctrlIO.valid := false.B
+      when(bramIndex =/= writeDepth.U - 1.U) {
+        bram.io.addra := bramIndex
+        bram.io.dina := 0.U
+        bram.io.wea := true.B
+        bramIndex := bramIndex + 1.U
+      } .elsewhen(bramIndex === writeDepth.U - 1.U) {
+        clearBram := false.B
+        bramIndex := 0.U
+      }
+    }
   }
 }
 
 
-class BramTester(name : String) extends Module {
-  val bram = Module(new Bram(name, 32, 1024, 128))
+// class BramTester(name : String) extends Module {
+//   val bram = Module(new Bram(name, 32, 1024, 128))
 
-  val io = IO(new Bundle {
-    val readData = Output(UInt(bram.config.readWidth.W))
-  })
+//   val io = IO(new Bundle {
+//     val readData = Output(UInt(bram.config.readWidth.W))
+//   })
 
-  val writeAddr = RegInit(0.U(32.W))
+//   val writeAddr = RegInit(0.U(32.W))
 
-  writeAddr := writeAddr + 1.U
+//   writeAddr := writeAddr + 1.U
 
-  bram.io.writeEnable := true.B
-  bram.io.writeAddr := writeAddr
-  bram.io.writeData := writeAddr
+//   bram.io.writeEnable := true.B
+//   bram.io.writeAddr := writeAddr
+//   bram.io.writeData := writeAddr
 
-  bram.io.readAddr := writeAddr >> 2.U
-  io.readData := bram.io.readData
-}
+//   bram.io.readAddr := writeAddr >> 2.U
+//   io.readData := bram.io.readData
+// }
 

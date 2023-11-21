@@ -18,7 +18,7 @@ object MaskUtil {
   }
 
   def GetValidMask(head : UInt, tail : UInt) : UInt = {
-    assert(head =/= tail)
+    //assert(head =/= tail)
 
     val size = 1 << head.getWidth
 

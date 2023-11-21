@@ -166,5 +166,5 @@ object SramUtils {
     BoringUtils.addSink(io.bytesDisable, f"${name}_bytesDisable")
   }
 
-  
+
 }
