@@ -59,6 +59,8 @@ class RenameTable extends Module {
   // 利用-1初始化为全1
   val sfree = RegInit(-1.S(BackendConfig.physicalRegNum.W).asTypeOf(UInt(BackendConfig.physicalRegNum.W)))
 
+  val busy = RegInit(0.U(BackendConfig.physicalRegNum.W))
+
   // arch rename table
   val art = RegInit(VecInit(Seq.fill(32)(0.U.asTypeOf(new RenameTableEntry))))
   // arch preg free list
@@ -78,6 +80,7 @@ class RenameTable extends Module {
         y.preg := DontCare
       })
     )
+    busy := 0.U
 
     recovering := false.B
   }.otherwise {
@@ -191,22 +194,35 @@ class RenameTable extends Module {
 
     sfree := sfree & ~allocs | recycles
 
+    // 根据和alloc广播更新Busy
+    assert((busy & allocs) === 0.U)
+
+    val wakeUpVec = WakeUpUtils.GetWakeup()
+    val wakeUp = wakeUpVec.map(1.U << _).reduce(_ | _)
+    busy := busy & ~wakeUp | allocs
+
+
+
+
     assert((allocs & recycles) === 0.U)
 
     // 回滚信号
     recovering := ctrlIO.recover
+
+
   }
 
 }
 
-class RenameUnit extends Module {
+class RenameUnit extends Module
+ with InstructionConstants {
   val io = IO(new Bundle {
     val in = Vec(FrontendConfig.decoderNum, Input(new DecodedInstruction))
-    val ready = Output(Bool())
+    val done = Output(Bool())
 
 
     val out = Vec(FrontendConfig.decoderNum, Output(new PipelineInstruction))
-    val dispatchReady = Input(Bool())
+    val nextDone = Input(Bool())
   })
 
   val renameTableIO = IO(Flipped(new RenameRequests))
@@ -227,7 +243,11 @@ class RenameUnit extends Module {
 
   val inCount = PopCount(io.in.map(_.valid))
 
-  val robSucc = robIO.restSize > inCount && io.dispatchReady
+  // 这里flush了也能写，反正这里flush了，rob肯定会recover了
+  val robSucc = robIO.restSize > inCount && io.nextDone
+  val succ = robSucc && renameTableIO.succ
+  robIO.newsCount := Mux(succ, inCount, 0.U)
+  io.done := succ
 
   for (i <- 0 until FrontendConfig.decoderNum) {
     // 连接reanmeTable
@@ -235,35 +255,40 @@ class RenameUnit extends Module {
     renameTableIO.finds(i)(0).lregIdx := io.in(i).rs1
     renameTableIO.finds(i)(1).lregIdx := io.in(i).rs2
 
-
     // 写入rob
-    robIO.news(i).valid := io.in(i).valid && robSucc
+    robIO.news(i).valid := io.in(i).valid && succ
     robIO.news(i).vaddr := io.in(i).vaddr
     robIO.news(i).writeRd := io.in(i).writeRd
     robIO.news(i).rdLidx := io.in(i).rd
     robIO.news(i).rdPidx := renameTableIO.news(i).pregIdx
   }
-  robIO.newsCount := Mux(robSucc, inCount, 0.U)
 
-  val succ = robSucc && renameTableIO.succ
-
-  io.ready := succ
   when (succ) {
     for (i <- 0 until FrontendConfig.decoderNum) {
+      outBuffer(i).valid := io.in(i).valid
       outBuffer(i).robIdx := robIO.news(i).idx
+      outBuffer(i).aluType := io.in(i).aluType
+      outBuffer(i).bruType := io.in(i).bruType
+      outBuffer(i).selOP1 := io.in(i).selOP1
+      outBuffer(i).selOP2 := io.in(i).selOP2
+      outBuffer(i).writeRd := io.in(i).writeRd
+      outBuffer(i).unique := io.in(i).unique
+      outBuffer(i).flush := io.in(i).flush
+
+      outBuffer(i).prs1 := renameTableIO.finds(i)(0).preg.pregIdx
+      outBuffer(i).prs2 := renameTableIO.finds(i)(1).preg.pregIdx
+      // 如果之前没有重命名过preg，说明其值仍然为0
+      when (!renameTableIO.finds(i)(0).preg.valid && io.in(i).selOP1 === OP1_RS1) {
+        outBuffer(i).selOP1 := OP1_ZERO
+      }
+      when (!renameTableIO.finds(i)(1).preg.valid && io.in(i).selOP2 === OP2_RS2) {
+        outBuffer(i).selOP2 := OP2_ZERO
+      }
+      outBuffer(i).prd := renameTableIO.news(i).pregIdx
+      
     }
+  } .elsewhen(ctrlIO.flush) {
+    outBuffer.foreach(_.valid := false.B)
   }
-
-
-  
-
-
-  
-
-  
-
-
-
-
 
 }

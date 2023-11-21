@@ -88,7 +88,8 @@ class DecodeUnit extends Module {
     
     // Decode Unit 必须所有指令一起出去
     val out = Vec(FrontendConfig.decoderNum, Output(new DecodedInstruction))
-    val outReady = Input(Bool())
+    // outBuffer中的数据已经利用完成，可以写入新的数据
+    val nextDone = Input(Bool())
   })
 
   val ctrlIO = IO(new Bundle {
@@ -97,27 +98,24 @@ class DecodeUnit extends Module {
   
   val decoders = VecInit(Seq.fill(FrontendConfig.decoderNum)(Module(new Decoder).io))
 
-  val result = RegInit(VecInit(Seq.fill(FrontendConfig.decoderNum)(0.U.asTypeOf(new DecodedInstruction))))
-
-  val empty = !result.map(_.valid).reduce(_ || _)
-  val ready = io.outReady || empty
+  val outBuffer = RegInit(VecInit(Seq.fill(FrontendConfig.decoderNum)(0.U.asTypeOf(new DecodedInstruction))))
   
   for (i <- 0 until FrontendConfig.decoderNum) {
     // 如果自己是气泡，不管后面准没准备好都可以ready
-    io.in(i).ready := ready
+    io.in(i).ready := io.nextDone
     decoders(i).in := io.in(i).bits
     decoders(i).valid := io.in(i).valid
 
-    io.out(i) := result(i)
+    io.out(i) := outBuffer(i)
   }
 
   when (ctrlIO.flush) {
-    result.foreach(_.valid := false.B)
+    outBuffer.foreach(_.valid := false.B)
     io.out.foreach(_.valid := false.B)
 
-  } .elsewhen(ready) {
+  } .elsewhen(io.nextDone) {
     for (i <- 0 until FrontendConfig.decoderNum) {
-      result(i) := decoders(i).out
+      outBuffer(i) := decoders(i).out
     }
 
   }

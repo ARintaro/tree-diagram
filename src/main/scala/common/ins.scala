@@ -171,6 +171,7 @@ class PipelineInstruction extends Bundle
   with InstructionConstants {
 
   // 在重排序缓存中的索引
+  val valid = Bool()
   val robIdx = UInt(BackendConfig.robIdxWidth)
   val prs1 = UInt(BackendConfig.pregIdxWidth)
   val prs2 = UInt(BackendConfig.pregIdxWidth)

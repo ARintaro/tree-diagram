@@ -53,4 +53,6 @@ object BackendConfig {
 
   val maxCommitsNum = 3 
 
+  val wakeUpNum = 4
+
 }
