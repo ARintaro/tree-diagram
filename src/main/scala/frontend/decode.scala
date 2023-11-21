@@ -12,7 +12,7 @@ class Decoder extends Module {
 
     val out = Output(new DecodedInstruction)
   })
-
+  
 
 }
 

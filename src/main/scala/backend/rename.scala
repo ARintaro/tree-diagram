@@ -55,15 +55,16 @@ class RenameTable extends Module {
   // speculative rename table
   val srt = RegInit(VecInit(Seq.fill(32)(0.U.asTypeOf(new RenameTableEntry))))
   // speculative preg free list
-  // 如果为1表示已经被占用
-  val sfree = RegInit(0.U(BackendConfig.physicalRegNum.W))
+  // 如果为0表示已经被占用
+  // 利用-1初始化为全1
+  val sfree = RegInit(-1.S(BackendConfig.physicalRegNum.W).asTypeOf(UInt(BackendConfig.physicalRegNum.W)))
 
   // arch rename table
   val art = RegInit(VecInit(Seq.fill(32)(0.U.asTypeOf(new RenameTableEntry))))
   // arch preg free list
-  val afree = RegInit(0.U(BackendConfig.physicalRegNum.W))
+  val afree = RegInit(-1.S(BackendConfig.physicalRegNum.W).asTypeOf(UInt(BackendConfig.physicalRegNum.W)))
 
-  val recovering = RegInit(true.B)
+  val recovering = RegInit(false.B)
 
   when(recovering) {
     // 从art恢复出freeList与srt
@@ -82,19 +83,27 @@ class RenameTable extends Module {
   }.otherwise {
     // 处理news和finds
 
+
+    // 分配出去的物理寄存器
+    val allocs = WireInit(0.U(BackendConfig.physicalRegNum.W))
+    
     {
       // 要么全部失败，要么全部成功
+      // 是否成功必须尽快计算，不应影响前序流水段的时序
+      
+      // 比较sfree中1的个数和news中valid的个数
+      
+      val validCount = PopCount(io.renames.news.map(_.valid))
+      val freeCount = PopCount(sfree)
+      val succ = validCount <= freeCount
 
       // 当前重命名表
       var curRT = Wire(Vec(32, new RenameTableEntry))
       // 当前freeList
       var curFree = Wire(UInt(BackendConfig.physicalRegNum.W))
-      // 前面一个请求失败要导致后面的请求也都不改变状态
-      var curFailed = Wire(Bool())
 
       curRT := srt
       curFree := sfree
-      curFailed := false.B
 
       // 按指令顺序更新
       for (i <- 0 until FrontendConfig.decoderNum) {
@@ -106,7 +115,6 @@ class RenameTable extends Module {
 
         val req = io.renames.news(i)
         // 更新目前的失败状态
-        curFailed = curFailed || curFree.andR
         // 更新curRT与curFree
 
         val select = PriorityEncoderOH(curFree)
@@ -126,17 +134,19 @@ class RenameTable extends Module {
         curRT = newRT
       }
 
-      val succ = !curFailed
 
       io.renames.succ := succ
       // 最终结果写回寄存器
       when(succ) {
         srt := curRT
-        sfree := curFree
+        allocs := sfree & ~curFree
       }
     }
 
     // 处理commit
+
+    // 回收的物理寄存器
+    val recycles = WireInit(0.U(BackendConfig.physicalRegNum.W))
 
     {
       // 当前重命名表
@@ -175,9 +185,13 @@ class RenameTable extends Module {
 
       // 最终结果写回
       art := curRT
-      sfree := curSFree
+      recycles := ~sfree & curSFree
       afree := curAFree
     }
+
+    sfree := sfree & ~allocs | recycles
+
+    assert((allocs & recycles) === 0.U)
 
     // 回滚信号
     recovering := ctrlIO.recover
@@ -192,13 +206,64 @@ class RenameUnit extends Module {
 
 
     val out = Vec(FrontendConfig.decoderNum, Output(new PipelineInstruction))
+    val dispatchReady = Input(Bool())
   })
 
   val renameTableIO = IO(Flipped(new RenameRequests))
+  val robIO = IO(Flipped(new RobNewIO))
 
   val ctrlIO = IO(new Bundle {
     val flush = Input(Bool())
   })
+
+  val outBuffer = RegInit(VecInit(Seq.fill(FrontendConfig.decoderNum)(0.U.asTypeOf(new PipelineInstruction))))
+  
+  // 进行寄存器重命名
+
+  // 快速判断是否成功
+  // 0. 下一段ready，可以覆盖outBuffer
+  // 1. rob中有足够空间
+  // 2. RenameTable中可以进行写入寄存器的重命名
+
+  val inCount = PopCount(io.in.map(_.valid))
+
+  val robSucc = robIO.restSize > inCount && io.dispatchReady
+
+  for (i <- 0 until FrontendConfig.decoderNum) {
+    // 连接reanmeTable
+    renameTableIO.news(i).valid := io.in(i).valid && io.in(i).writeRd && robSucc
+    renameTableIO.finds(i)(0).lregIdx := io.in(i).rs1
+    renameTableIO.finds(i)(1).lregIdx := io.in(i).rs2
+
+
+    // 写入rob
+    robIO.news(i).valid := io.in(i).valid && robSucc
+    robIO.news(i).vaddr := io.in(i).vaddr
+    robIO.news(i).writeRd := io.in(i).writeRd
+    robIO.news(i).rdLidx := io.in(i).rd
+    robIO.news(i).rdPidx := renameTableIO.news(i).pregIdx
+  }
+  robIO.newsCount := Mux(robSucc, inCount, 0.U)
+
+  val succ = robSucc && renameTableIO.succ
+
+  io.ready := succ
+  when (succ) {
+    for (i <- 0 until FrontendConfig.decoderNum) {
+      outBuffer(i).robIdx := robIO.news(i).idx
+    }
+  }
+
+
+  
+
+
+  
+
+  
+
+
+
 
 
 }

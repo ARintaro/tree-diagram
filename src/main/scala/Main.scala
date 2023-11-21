@@ -33,7 +33,7 @@ object MakeVerilatorVerilog {
 object MakeTest {
   def main(args: Array[String]): Unit = {
     GenConfig.verilator = true
-    circt.stage.ChiselStage.emitSystemVerilogFile(new PhysicalRegisterFile, Array("--target-dir", args(0)))
-
+    circt.stage.ChiselStage.emitSystemVerilogFile(new LabMaster, Array("--target-dir", args(0)))
+    circt.stage.ChiselStage.emitSystemVerilogFile(new SramController, Array("--target-dir", args(0)))
   }
 }
