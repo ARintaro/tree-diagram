@@ -151,7 +151,6 @@ class DecodedInstruction extends Bundle
   // 写入目的寄存器
   val writeRd = Bool()
   val bruType = UInt(BRU_WIDTH)
-  val isJalr = Bool() // BRU需要通过isJalr判断第二个操作数的来源
   val aluType = UInt(ALU_WIDTH)
   // 等待流水线全部执行完毕后进入发射队列
   val unique = Bool()

@@ -27,7 +27,7 @@ class Decoder extends Module with InstructionConstants {
     Array(      
       luiPattern   -> List(ALU_ADD , BRU_NONE, OP1_ZERO, OP2_IMM , true.B , IMMT_U   , true.B , IQT_INT , false.B , MEM_WORD),
       auipcPattern -> List(ALU_ADD , BRU_NONE, OP1_PC  , OP2_IMM , true.B , IMMT_U   , true.B , IQT_INT , false.B , MEM_WORD),
-      jalPattern   -> List(ALU_ADD , BRU_NONE, OP1_PC  , OP2_IMM , true.B , IMMT_J   , true.B , IQT_INT , false.B , MEM_WORD),
+      jalPattern   -> List(ALU_ADD , BRU_NONE, OP1_PC  , OP2_FOUR, true.B , IMMT_J   , true.B , IQT_INT , false.B , MEM_WORD),
       jalrPattern  -> List(ALU_ADD , BRU_JALR, OP1_PC  , OP2_FOUR, true.B , IMMT_I   , true.B , IQT_INT , false.B , MEM_WORD),
       beqPattern   -> List(ALU_ADD , BRU_EQ  , OP1_PC  , OP2_IMM , false.B, IMMT_B   , true.B , IQT_INT , false.B , MEM_WORD),
       bnePattern   -> List(ALU_ADD , BRU_NE  , OP1_PC  , OP2_IMM , false.B, IMMT_B   , true.B , IQT_INT , false.B , MEM_WORD),
@@ -77,7 +77,6 @@ class Decoder extends Module with InstructionConstants {
 
   io.out.flush := false.B
   io.out.unique := false.B
-  io.out.isJalr := data === jalrPattern
 
 }
 
