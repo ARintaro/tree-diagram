@@ -9,6 +9,12 @@ trait IssueInstruction {
   def checkReady(busy: UInt): Bool
 }
 
+class SidewayResult extends Bundle {
+  val valid = Bool()
+  val value = UInt(32.W)
+}
+
+
 object BackendUtils {
   def GetWakeupName(index: Int): String = {
     return s"WakeUp${index}"
@@ -46,4 +52,52 @@ object BackendUtils {
     val busy = Wire(UInt(BackendConfig.physicalRegNum.W))
     return busy
   }
+
+
+  def GetSidewayPregName(index : Int) : String = {
+    return s"SidewayPreg${index}"
+  }
+  def GetSidewayValueName(index : Int) : String = {
+    return s"SidewayValue${index}"
+  }
+  def GetSidewayValidName(index : Int) : String = {
+    return s"SidewayValid${index}"
+  }
+
+  def BroadcastSideway(index : Int, preg : UInt, value : UInt, valid : Bool) = {
+    BoringUtils.addSource(preg, GetSidewayPregName(index))
+    BoringUtils.addSource(value, GetSidewayValueName(index))
+    BoringUtils.addSource(valid, GetSidewayValidName(index))
+  }
+
+  def SearchSideway(rs1 : UInt, rs2 : UInt) : Vec[SidewayResult] = {
+    val valid = Wire(Vec(BackendConfig.sidewayNum, Bool()))
+    val preg = Wire(Vec(BackendConfig.sidewayNum, UInt(BackendConfig.pregIdxWidth)))
+    val value = Wire(Vec(BackendConfig.sidewayNum, UInt(32.W)))
+
+    val ret = Wire(Vec(2, new SidewayResult))
+
+    for (i <- 0 until BackendConfig.sidewayNum) {
+      BoringUtils.addSink(valid(i), GetSidewayValidName(i))
+      BoringUtils.addSink(preg(i), GetSidewayPregName(i))
+      BoringUtils.addSink(value(i), GetSidewayValueName(i))
+    }
+
+    for (i <- 0 until 2) {
+      val id = if (i == 0) rs1 else rs2
+      val eq = preg.zip(valid).map{case (x, y) => {
+        x === id && y
+      }}
+      
+      assert(PopCount(eq) <= 1.U)
+
+      ret(i).valid := eq.reduce(_ || _)
+      ret(i).value := Mux1H(eq, value)
+    }
+    
+
+    ret
+  }
+
+
 }

@@ -62,45 +62,49 @@ class CompressedIssueQueue[T <: Data with IssueInstruction](
       }
     }
 
-	when (doEnq) {
-	  val enqIdx = Mux(issueSucc, firstEmptyIdx - 1.U, firstEmptyIdx)
-	  ram(enqIdx) := io.enq.bits
-	}
+    when(doEnq) {
+      val enqIdx = Mux(issueSucc, firstEmptyIdx - 1.U, firstEmptyIdx)
+      ram(enqIdx) := io.enq.bits
+    }
 
-	when (doEnq && !issueSucc) {
-	  valid := (valid << 1) | 1.U
-	} .elsewhen(!doEnq && issueSucc) {
-	  valid := valid >> 1
-	}
-    
+    when(doEnq && !issueSucc) {
+      valid := (valid << 1) | 1.U
+    }.elsewhen(!doEnq && issueSucc) {
+      valid := valid >> 1
+    }
+
   }
 }
 
-class FifoIssueQueue[T <: Data with IssueInstruction](gen : T, size : Int, enqPort : Int) {
+class FifoIssueQueue[T <: Data with IssueInstruction](
+    gen: T,
+    size: Int,
+    enqPort: Int
+) {
   val io = IO(new Bundle {
-	val issue = Decoupled(gen)
-	val enq = Vec(enqPort, Flipped(Decoupled(gen)))
+    val issue = Decoupled(gen)
+    val enq = Vec(enqPort, Flipped(Decoupled(gen)))
   })
 
   val ctrlIO = IO(new Bundle {
-	val flush = Bool()
+    val flush = Bool()
   })
 
   val queue = Module(new CircularQueue(gen, size, enqPort, 1, "IssueQueue"))
-  
+
   queue.ctrlIO.flush := ctrlIO.flush
   queue.io.enq <> io.enq
   queue.io.deq(0) <> io.issue
 }
 
-class IntInstruction extends Bundle
-  with InstructionConstants
-  with IssueInstruction  {
+class IntInstruction
+    extends Bundle
+    with InstructionConstants
+    with IssueInstruction {
   val robIdx = UInt(BackendConfig.robIdxWidth)
   val prs1 = UInt(BackendConfig.pregIdxWidth)
   val prs2 = UInt(BackendConfig.pregIdxWidth)
   val prd = UInt(BackendConfig.pregIdxWidth)
-  
 
   // TODO : 立即数压缩
   val imm = UInt(32.W)
@@ -114,27 +118,29 @@ class IntInstruction extends Bundle
   val aluType = UInt(ALU_WIDTH)
 
   override def checkReady(busy: UInt): Bool = {
-	return (selOP1 =/= OP1_RS1 || !busy(prs1)) && (selOP2 =/= OP2_RS2 || !busy(prs2))
+    return (selOP1 =/= OP1_RS1 || !busy(prs1)) && (selOP2 =/= OP2_RS2 || !busy(
+      prs2
+    ))
   }
 }
 
-class MemoryInstruction extends Bundle 
-  with InstructionConstants
-  with IssueInstruction {
-  
+class MemoryInstruction
+    extends Bundle
+    with InstructionConstants
+    with IssueInstruction {
+
   val robIdx = UInt(BackendConfig.robIdxWidth)
   val prs = UInt(BackendConfig.pregIdxWidth)
   val prd = UInt(BackendConfig.pregIdxWidth)
 
   // TODO : 立即数压缩
   val imm = UInt(32.W)
-  
+
   val memType = Bool() // true: store, false: load
   val memLen = UInt(MEM_LEN_TYPE)
- 
 
   override def checkReady(busy: UInt): Bool = {
-	return !busy(prs)
+    return !busy(prs)
   }
 
 }
