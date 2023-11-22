@@ -35,26 +35,30 @@ class BRU extends Module with InstructionConstants {
         val imm = Input(UInt(32.W))
         val bruType = Input(UInt(BRU_WIDTH))
 
-        val alu_out = Input(UInt(32.W)) // B型指令的跳转地址是ALU计算的结果
+        val aluOut = Input(UInt(32.W)) // B型指令的跳转地址是ALU计算的结果
 
         val doJump = Output(Bool())   // 是否跳转
         val jumpTarget = Output(UInt(32.W))  // 跳转目标地址
     })
 
+    val eq_signal   = io.rs1 === io.rs2
+    val lt_signal   = io.rs1.asSInt < io.rs2.asSInt
+    val ltu_signal  = io.rs1 < io.rs2
+
     val jumpSignals = ListLookup(bruType,
-    List                (false.B                       , 0.U                    ),
+    List                (false.B     , 0.U            ),
     Array(             
-        BRU_NONE -> List(false.B                       , 0.U                    ),
-        BRU_EQ   -> List(io.rs1 === io.rs2             , io.alu_out             ),
-        BRU_NE   -> List(io.rs1 =/= io.rs2             , io.alu_out             ),
-        BRU_LT   -> List(io.rs1.asSInt < io.rs2.asSInt , io.alu_out             ),
-        BRU_GE   -> List(io.rs1.asSInt >= io.rs2.asSInt, io.alu_out             ),
-        BRU_LTU  -> List(io.rs1 < io.rs2               , io.alu_out             ),
-        BRU_GEU  -> List(io.rs1 >= io.rs2              , io.alu_out             ),
-        BRU_JALR -> List(true.B                        , io.pc + io.rs1 + io.imm)
+        BRU_NONE -> List(false.B     , 0.U            ),
+        BRU_EQ   -> List(eq_signal   , io.aluOut      ),
+        BRU_NE   -> List(!eq_signal  , io.aluOut      ),
+        BRU_LT   -> List(lt_signal   , io.aluOut      ),
+        BRU_GE   -> List(!lt_signal  , io.aluOut      ),
+        BRU_LTU  -> List(ltu_signal  , io.aluOut      ),
+        BRU_GEU  -> List(!ltu_signal , io.aluOut      ),
+        BRU_JALR -> List(true.B      , io.rs1 + io.imm)
     ))
-    
+
     io.doJump := jumpSignals(0)
-    io.jumpTarget := jumpSignals(1)
+    io.jumpTarget := jumpSignals(1) + io.pc
 
 }
