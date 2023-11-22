@@ -128,10 +128,10 @@ trait InstructionConstants {
   val ALU_SLTU = 9.U(ALU_WIDTH)
 
   // MEM访存长度
-  val MEM_WIDTH = 2.W
-  val MEM_WORD = 0.U(MEM_WIDTH)
-  val MEM_HALF = 1.U(MEM_WIDTH)
-  val MEM_BYTE = 2.U(MEM_WIDTH)
+  val MEM_LEN_TYPE = 2.W
+  val MEM_WORD = 0.U(MEM_LEN_TYPE)
+  val MEM_HALF = 1.U(MEM_LEN_TYPE)
+  val MEM_BYTE = 2.U(MEM_LEN_TYPE)
 }
 
 // 解码单元解码出的指令
@@ -152,14 +152,18 @@ class DecodedInstruction extends Bundle
   val writeRd = Bool()
   val bruType = UInt(BRU_WIDTH)
   val aluType = UInt(ALU_WIDTH)
+  val memType = Bool() // true: store, false: load
+  // 访存控制信号
+  val memLenType = UInt(MEM_LEN_TYPE)
+
+
   // 等待流水线全部执行完毕后进入发射队列
   val unique = Bool()
   // 在提交时刷新流水线
   val flush = Bool()
   
-  // 访存控制信号
-  val memLen = UInt(MEM_WIDTH)
-  val memWrite = Bool() // true: store, false: load
+  
+  
 
   def rs1 = inst(19, 15)
   def rs2 = inst(24, 20)
@@ -173,6 +177,7 @@ class PipelineInstruction extends Bundle
   // 在重排序缓存中的索引
   val valid = Bool()
   val robIdx = UInt(BackendConfig.robIdxWidth)
+  val iqtType = UInt(IQT_WIDTH)
   val prs1 = UInt(BackendConfig.pregIdxWidth)
   val prs2 = UInt(BackendConfig.pregIdxWidth)
   val prd = UInt(BackendConfig.pregIdxWidth)
@@ -186,6 +191,12 @@ class PipelineInstruction extends Bundle
   val writeRd = Bool()
   val bruType = UInt(BRU_WIDTH)
   val aluType = UInt(ALU_WIDTH)
+  val memType = Bool() // true: store, false: load
+  // 访存控制信号
+  val memLen = UInt(MEM_LEN_TYPE)
+
+
+  
   // 等待流水线全部执行完毕后进入发射队列
   val unique = Bool()
   // 在提交时刷新流水线
@@ -195,9 +206,19 @@ class PipelineInstruction extends Bundle
     val debugInst = UInt(InsConfig.INS_WIDTH)
     val debugVaddr = UInt(BusConfig.ADDR_WIDTH)
   }
-}
 
-
-trait InstructionPattern {
   
+  def GetIntInstruction() : IntInstruction = {
+    val inst = Wire(new IntInstruction)
+    // TODO
+    inst
+  }
+
+  def GetMemoryInstruction() : MemoryInstruction = {
+    val inst = Wire(new MemoryInstruction)
+    // TODO
+    inst
+  }
 }
+
+

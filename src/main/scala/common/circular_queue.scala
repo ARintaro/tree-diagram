@@ -19,9 +19,7 @@ class CircularQueue[T <: Data](
   })
 
   val ctrlIO = IO(new Bundle {
-    // val valid = Input(Bool())
-    // val count = Input(UInt(sizeWidth))
-    // val newData = Input(Vec(size, gen))
+
     val flush = Input(Bool())
   })
 

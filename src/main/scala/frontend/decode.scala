@@ -23,7 +23,7 @@ class Decoder extends Module with InstructionConstants {
 
   val signals = ListLookup(data,
                         /* 0       , 1       , 2       , 3       , 4      , 5        , 6      , 7       , 8       , 9       */ 
-                        /* aluType , bruType , selOP1  , selOP2  , writeRd, immType  , valid  , iqtType , memWrite, memLen  */
+                        /* aluType , bruType , selOP1  , selOP2  , writeRd, immType  , valid  , iqtType , memType, memLen  */
     List(                  ALU_ADD , BRU_NONE, OP1_RS1 , OP2_RS2 , false.B, IMMT_I   , false.B, IQT_INT , false.B , MEM_WORD),
     Array(      
       luiPattern   -> List(ALU_ADD , BRU_NONE, OP1_ZERO, OP2_IMM , true.B , IMMT_U   , true.B , IQT_INT , false.B , MEM_WORD),
@@ -73,8 +73,8 @@ class Decoder extends Module with InstructionConstants {
   io.out.immType := signals(5)
   io.out.valid := signals(6)
   io.out.iqtType := signals(7)
-  io.out.memWrite := signals(8)
-  io.out.memLen := signals(9)
+  io.out.memType := signals(8)
+  io.out.memLenType := signals(9)
 
   io.out.flush := false.B
   io.out.unique := false.B

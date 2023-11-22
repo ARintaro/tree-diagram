@@ -3,6 +3,7 @@ package core
 import chisel3._
 import chisel3.util._
 import svsim.Backend
+import chisel3.util.experimental.BoringUtils
 
 class RenameTableEntry extends Bundle {
   val valid = Bool()
@@ -195,15 +196,15 @@ class RenameTable extends Module {
     sfree := sfree & ~allocs | recycles
 
     // 根据和alloc广播更新Busy
+    
+
+    val wakeupHot = BackendUtils.GetWakeupHot()
+    
+    busy := busy & ~wakeupHot | allocs
+    BoringUtils.addSource(busy, "busy")
+
+    assert((wakeupHot & allocs) === 0.U)
     assert((busy & allocs) === 0.U)
-
-    val wakeUpVec = WakeUpUtils.GetWakeup()
-    val wakeUp = wakeUpVec.map(1.U << _).reduce(_ | _)
-    busy := busy & ~wakeUp | allocs
-
-
-
-
     assert((allocs & recycles) === 0.U)
 
     // 回滚信号

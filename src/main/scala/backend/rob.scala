@@ -4,12 +4,14 @@ import chisel3._
 import chisel3.util._
 
 class RobEntry extends Bundle {
+  val completed = Bool()
   val vaddr = UInt(BusConfig.ADDR_WIDTH)
   val writeRd = Bool()
   // 写入寄存器逻辑ID
   val rdLidx = UInt(5.W)
   // 写入寄存器物理ID
   val rdPidx = UInt(BackendConfig.pregIdxWidth)
+  
 }
 
 class NewRobRequest extends Bundle {
@@ -52,6 +54,7 @@ class ReorderBuffer extends Module {
       entry.vaddr := newIO.news(i).vaddr
       entry.writeRd := newIO.news(i).writeRd
       entry.rdLidx := newIO.news(i).rdLidx
+      entry.completed := false.B
 
     }
     newIO.news(i).idx := idx

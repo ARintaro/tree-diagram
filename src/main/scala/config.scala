@@ -52,7 +52,10 @@ object BackendConfig {
   val robIdxWidth = log2Ceil(robSize).W
 
   val maxCommitsNum = 3 
-
-  val wakeUpNum = 4
-
+  
+  val intPipelineNum = 3
+  val memPipelineNum = 1
+  val wakeUpNum = intPipelineNum + memPipelineNum
+  // 唤醒和旁路网络中，intPipe占用(0, intPipelineNum - 1)
+  // memPipe占用intPipelineNum
 }
