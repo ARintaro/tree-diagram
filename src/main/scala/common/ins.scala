@@ -156,7 +156,8 @@ class DecodedInstruction extends Bundle
   // 访存控制信号
   val memLenType = UInt(MEM_LEN_TYPE)
 
-
+  // 指令解码错误，触发异常
+  val error = Bool()
   // 等待流水线全部执行完毕后进入发射队列
   val unique = Bool()
   // 在提交时刷新流水线
