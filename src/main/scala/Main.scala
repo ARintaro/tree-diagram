@@ -9,7 +9,7 @@ object MakeVivadoVerilog {
     // circt.stage.ChiselStage.emitSystemVerilogFile(new Test, Array("--target-dir", args(0)))
     GenConfig.verilator = false
 
-    circt.stage.ChiselStage.emitSystemVerilogFile(new IfutestTop, Array("--target-dir", args(0)))
+    circt.stage.ChiselStage.emitSystemVerilogFile(new IfutestTop, Array("--target-dir",  args(0)))
 
 
     for ((name, config) <- BramConfig.map) {
@@ -24,7 +24,7 @@ object MakeVivadoVerilog {
 object MakeVerilatorVerilog {
   def main(args: Array[String]): Unit = {
     GenConfig.verilator = true
-    circt.stage.ChiselStage.emitSystemVerilogFile(new IfutestTop, Array("--target-dir", args(0)))
+    circt.stage.ChiselStage.emitSystemVerilogFile(new IfutestTopVerilator, Array("--target-dir", args(0)), Array("-O=debug"))
     
     CacheConfig.icache.Print()
   }

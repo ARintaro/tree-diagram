@@ -52,7 +52,7 @@ class InstructionFetchUnit extends Module {
 
   // 在取指二阶段进行快速解码
   val fetchPC =
-    (0 until CacheConfig.icache.cacheLineSize).map(i => pc.io.vaddr + (i * 4).U)
+    (0 until CacheConfig.icache.cacheLineSize).map(i => tlb.f2_io.paddr.bits + (i * 4).U)
   val preDecs = VecInit(
     Seq.fill(CacheConfig.icache.cacheLineSize)(Module(new PreDecoder).io)
   )
@@ -74,7 +74,7 @@ class InstructionFetchUnit extends Module {
       case ((x, y), z) => x && y && z
     }
   val anyValid = fetchValid.reduce(_ || _)
-  val lastValidIdx = PriorityEncoder(fetchValid.map(!_)) - 1.U
+  val lastValidIdx = (fetchValid.length - 1).U - PriorityEncoder(fetchValid.reverse)
 
   when(anyValid) {
     // 取出有效指令
