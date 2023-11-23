@@ -6,6 +6,8 @@ import chisel3.util._
 class InstructionFetchUnit extends Module {
   val io = IO(new Bundle {
     val fetch = Vec(FrontendConfig.decoderNum, Decoupled(new RawInstruction()))
+
+    val redirect = Vec(1, Flipped(Valid(UInt(BusConfig.ADDR_WIDTH))))
   })
 
   val sramBusIO = IO(Vec(2, BusMasterInterface()))
@@ -17,7 +19,12 @@ class InstructionFetchUnit extends Module {
     val clearIcache = Input(Bool())
   })
 
-  val pc = Module(new ProgramCounter(1, 0x80000000L))
+  val pc = Module(new ProgramCounter(2, 0x80000000L))
+
+  // ROB发来的重定向请求
+  pc.io.reqs(1) <> io.redirect(0)
+
+  assert(!io.redirect(0).valid || ctrlIO.flush, "Redirect without flush")
 
   val tlb = Module(new TranslationLookasideBuffer)
   val icache = Module(new InstructionCache(CacheConfig.icache))
@@ -74,7 +81,7 @@ class InstructionFetchUnit extends Module {
       case ((x, y), z) => x && y && z
     }
   val anyValid = fetchValid.reduce(_ || _)
-  val lastValidIdx = PriorityEncoder(fetchValid.map(!_)) - 1.U
+  val lastValidIdx = (fetchValid.length - 1).U - PriorityEncoder(fetchValid.reverse)
 
   when(anyValid) {
     // 取出有效指令

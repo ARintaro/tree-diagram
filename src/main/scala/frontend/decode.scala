@@ -73,7 +73,7 @@ class Decoder extends Module with InstructionConstants {
   io.out.selOP2 := signals(3)
   io.out.writeRd := signals(4)
   io.out.immType := signals(5)
-  io.out.error := signals(6)
+  // io.out.error := signals(6)
   io.out.iqtType := signals(7)
   io.out.memType := signals(8)
   io.out.memLenType := signals(9)

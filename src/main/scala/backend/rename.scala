@@ -208,6 +208,8 @@ class RenameTable extends Module {
     assert((allocs & recycles) === 0.U)
 
     // 回滚信号
+    // 注意flush拉高的这一周期的commit仍然需要有效
+    // 所以使用状态机下一周期开始恢复
     recovering := ctrlIO.recover
 
 
