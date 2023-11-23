@@ -14,15 +14,22 @@ class RegisterWriteRequest extends Bundle {
   val value = Output(UInt(32.W))
 }
 
-class PhysicalRegisterFile(readPortNum: Int) extends Module {
+class PhysicalRegisterFile(readPortNum: Int, writePortNum: Int) extends Module {
   val io = IO(new Bundle {
     val reads = Vec(readPortNum, Flipped(new RegisterReadRequest))
+    val writes = Vec(writePortNum, Flipped(new RegisterWriteRequest))
   })
 
   val regs = RegInit(VecInit(Seq.fill(BackendConfig.physicalRegNum)(0.U(32.W))))
 
   for (i <- 0 until readPortNum) {
     io.reads(i).value := regs(io.reads(i).id)
+  }
+
+  for (i <- 0 until writePortNum) {
+    when(io.writes(i).valid) {
+      regs(io.writes(i).id) := io.writes(i).value
+    }
   }
 
 }

@@ -26,6 +26,7 @@ object BusConfig {
 
 object InsConfig {
   val INS_WIDTH = 32.W
+  val EXECEPTION_WIDTH = 4.W
 
   object Opcode {
     val jal = "b1101111".U
@@ -55,8 +56,9 @@ object BackendConfig {
   
   val intPipelineNum = 3
   val memPipelineNum = 1
-  val wakeUpNum = intPipelineNum + memPipelineNum
-  val sidewayNum = intPipelineNum + memPipelineNum
+  val pipelineNum = intPipelineNum + memPipelineNum
+  val wakeUpNum = pipelineNum
+  val sidewayNum = pipelineNum
   // 唤醒和旁路网络中，intPipe占用(0, intPipelineNum - 1)
   // memPipe占用intPipelineNum
 }

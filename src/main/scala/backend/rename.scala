@@ -12,41 +12,41 @@ class RenameTableEntry extends Bundle {
 
 class NewPregRequest extends Bundle {
   // 注意写x0的话这里的valid应该设成false
-  val valid = Input(Bool())
+  val valid = Output(Bool())
 
   // 返回的物理寄存器下标
-  val pregIdx = Output(UInt(BackendConfig.pregIdxWidth))
+  val pregIdx = Input(UInt(BackendConfig.pregIdxWidth))
 }
 
 class FindPregRequest extends Bundle {
-  val lregIdx = Input(UInt(5.W))
+  val lregIdx = Output(UInt(5.W))
 
-  val preg = Output(new RenameTableEntry())
+  val preg = Input(new RenameTableEntry())
 }
 
 class CommitPregRequest extends Bundle {
-  val valid = Input(Bool())
+  val valid = Output(Bool())
 
   // commit时
   // 将映射关系写入到art中，让逻辑寄存器对应的上一个物理寄存器重新加入freeList里
-  val lregIdx = Input(UInt(5.W))
-  val pregIdx = Input(UInt(BackendConfig.pregIdxWidth))
+  val lregIdx = Output(UInt(5.W))
+  val pregIdx = Output(UInt(BackendConfig.pregIdxWidth))
 }
 
 class RenameRequests extends Bundle {
   // 重命名请求
-  val news = Vec(FrontendConfig.decoderNum, new NewPregRequest)
-  val finds = Vec(FrontendConfig.decoderNum, Vec(2, new FindPregRequest))
+  val news = Vec(FrontendConfig.decoderNum, Flipped(new NewPregRequest))
+  val finds = Vec(FrontendConfig.decoderNum, Vec(2, Flipped(new FindPregRequest)))
   // 重命名请求是否成功
-  val succ = Output(Bool())
+  val succ = Input(Bool())
 }
 
 class RenameTable extends Module {
   val io = IO(new Bundle {
-    val renames = new RenameRequests
+    val renames = Flipped(new RenameRequests)
 
     // 提交请求
-    val commits = Vec(BackendConfig.maxCommitsNum, new CommitPregRequest)
+    val commits = Vec(BackendConfig.maxCommitsNum, Flipped(new CommitPregRequest))
   })
 
   val ctrlIO = IO(new Bundle {
@@ -262,31 +262,36 @@ class RenameUnit extends Module
     robIO.news(i).writeRd := io.in(i).writeRd
     robIO.news(i).rdLidx := io.in(i).rd
     robIO.news(i).rdPidx := renameTableIO.news(i).pregIdx
+    robIO.news(i).exception := io.in(i).exception
+    robIO.news(i).exceptionCode := io.in(i).exceptionCode
+
   }
 
   when (succ) {
     for (i <- 0 until FrontendConfig.decoderNum) {
-      outBuffer(i).valid := io.in(i).valid
-      outBuffer(i).robIdx := robIO.news(i).idx
-      outBuffer(i).aluType := io.in(i).aluType
-      outBuffer(i).bruType := io.in(i).bruType
-      outBuffer(i).selOP1 := io.in(i).selOP1
-      outBuffer(i).selOP2 := io.in(i).selOP2
-      outBuffer(i).writeRd := io.in(i).writeRd
-      outBuffer(i).unique := io.in(i).unique
-      outBuffer(i).flush := io.in(i).flush
+      val ins = Wire(new PipelineInstruction)
+      ins.valid := io.in(i).valid
+      ins.robIdx := robIO.news(i).idx
+      ins.aluType := io.in(i).aluType
+      ins.bruType := io.in(i).bruType
+      ins.selOP1 := io.in(i).selOP1
+      ins.selOP2 := io.in(i).selOP2
+      ins.writeRd := io.in(i).writeRd
+      ins.unique := io.in(i).unique
+      ins.flush := io.in(i).flush
 
-      outBuffer(i).prs1 := renameTableIO.finds(i)(0).preg.pregIdx
-      outBuffer(i).prs2 := renameTableIO.finds(i)(1).preg.pregIdx
+      ins.prs1 := renameTableIO.finds(i)(0).preg.pregIdx
+      ins.prs2 := renameTableIO.finds(i)(1).preg.pregIdx
       // 如果之前没有重命名过preg，说明其值仍然为0
       when (!renameTableIO.finds(i)(0).preg.valid && io.in(i).selOP1 === OP1_RS1) {
-        outBuffer(i).selOP1 := OP1_ZERO
+        ins.selOP1 := OP1_ZERO
       }
       when (!renameTableIO.finds(i)(1).preg.valid && io.in(i).selOP2 === OP2_RS2) {
-        outBuffer(i).selOP2 := OP2_ZERO
+        ins.selOP2 := OP2_ZERO
       }
-      outBuffer(i).prd := renameTableIO.news(i).pregIdx
+      ins.prd := renameTableIO.news(i).pregIdx
       
+      outBuffer(i) := ins
     }
   } .elsewhen(ctrlIO.flush) {
     outBuffer.foreach(_.valid := false.B)
