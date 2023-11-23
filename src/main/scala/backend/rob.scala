@@ -68,6 +68,9 @@ class ReorderBuffer extends Module {
   val commitsIO = IO(
     Vec(BackendConfig.maxCommitsNum, new CommitPregRequest)
   )
+  val readPcIO = IO(
+    Vec(BackendConfig.intPipelineNum, Flipped(new RobReadPcRequest))
+  )
   val io = IO(new Bundle {
     val redirect = Valid(UInt(BusConfig.ADDR_WIDTH))
   })
@@ -75,8 +78,6 @@ class ReorderBuffer extends Module {
 
   val ctrlIO = IO(new Bundle {
     val flushPipeline = Output(Bool())
-
-    val flush = Input(Bool())
   })
 
   val entries = RegInit(
@@ -184,7 +185,7 @@ class ReorderBuffer extends Module {
   }
 
 
-  val flush = ctrlIO.flush || ctrlIO.flushPipeline
+  val flush = ctrlIO.flushPipeline
   when (flush) {
     head := 0.U
     tail := 0.U

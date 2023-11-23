@@ -56,7 +56,7 @@ object BackendConfig {
   
   val intPipelineNum = 3
   val memPipelineNum = 1
-  val pipelineNum = intPipelineNum + memPipelineNum
+  val pipelineNum = intPipelineNum
   val wakeUpNum = pipelineNum
   val sidewayNum = pipelineNum
   // 唤醒和旁路网络中，intPipe占用(0, intPipelineNum - 1)

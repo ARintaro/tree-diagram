@@ -16,14 +16,16 @@ class RegisterWriteRequest extends Bundle {
 
 class PhysicalRegisterFile(readPortNum: Int, writePortNum: Int) extends Module {
   val io = IO(new Bundle {
-    val reads = Vec(readPortNum, Flipped(new RegisterReadRequest))
+    val reads = Vec(readPortNum, Vec(2, Flipped(new RegisterReadRequest)))
     val writes = Vec(writePortNum, Flipped(new RegisterWriteRequest))
   })
 
   val regs = RegInit(VecInit(Seq.fill(BackendConfig.physicalRegNum)(0.U(32.W))))
 
   for (i <- 0 until readPortNum) {
-    io.reads(i).value := regs(io.reads(i).id)
+    for (j <- 0 until 2) {
+      io.reads(i)(j).value := regs(io.reads(i)(j).id)
+    }
   }
 
   for (i <- 0 until writePortNum) {
