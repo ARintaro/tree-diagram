@@ -41,24 +41,21 @@ class BRU extends Module with InstructionConstants {
         val jumpTarget = Output(UInt(32.W))  // 跳转目标地址
     })
 
-    val eq_signal   = io.rs1 === io.rs2
-    val lt_signal   = io.rs1.asSInt < io.rs2.asSInt
-    val ltu_signal  = io.rs1 < io.rs2
+    val eqSignal   = io.rs1 === io.rs2
+    val ltSignal   = io.rs1.asSInt < io.rs2.asSInt
+    val ltuSignal  = io.rs1 < io.rs2
 
-    val jumpSignals = ListLookup(bruType,
-    List                (false.B     , 0.U            ),
-    Array(             
-        BRU_NONE -> List(false.B     , 0.U            ),
-        BRU_EQ   -> List(eq_signal   , io.aluOut      ),
-        BRU_NE   -> List(!eq_signal  , io.aluOut      ),
-        BRU_LT   -> List(lt_signal   , io.aluOut      ),
-        BRU_GE   -> List(!lt_signal  , io.aluOut      ),
-        BRU_LTU  -> List(ltu_signal  , io.aluOut      ),
-        BRU_GEU  -> List(!ltu_signal , io.aluOut      ),
-        BRU_JALR -> List(true.B      , io.rs1 + io.imm)
+    io.doJump := MuxLookup(io.bruType, false.B)(Seq(
+        BRU_NONE -> false.B,
+        BRU_EQ   -> eqSignal,
+        BRU_NE   -> !eqSignal,
+        BRU_LT   -> ltSignal,
+        BRU_GE   -> !ltSignal,
+        BRU_LTU  -> ltuSignal,
+        BRU_GEU  -> !ltuSignal,
+        BRU_JALR -> true.B
     ))
 
-    io.doJump := jumpSignals(0)
-    io.jumpTarget := jumpSignals(1) + io.pc
+    io.jumpTarget := Mux(io.bruType === BRU_JALR, io.rs1 + io.imm, io.aluOut)
 
 }
