@@ -32,6 +32,18 @@ class RobNewIO extends Bundle {
   val restSize = Output(UInt((log2Ceil(BackendConfig.robSize)).W))
 }
 
+class RobReadPcRequest extends Bundle {
+  val robIdx = Output(UInt(BackendConfig.robIdxWidth))
+  val vaddr = Input(UInt(BusConfig.ADDR_WIDTH))
+}
+
+class RobCompleteRequest extends Bundle {
+  val valid = Output(Bool())
+  val robIdx = Output(UInt(BackendConfig.robIdxWidth))
+  val jump = Output(Bool())
+  val jumpTarget = Output(UInt(BusConfig.ADDR_WIDTH))
+}
+
 class ReorderBuffer extends Module {
 
   val newIO = IO(new RobNewIO)
