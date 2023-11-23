@@ -1,5 +1,5 @@
 VIVADO_DIR = /mnt/d/computer_arc/for_lab2/cod23-zhangzuo21/thinpad_top.srcs/sources_1/new
-VERILATOR_DIR = ./build/verilator
+VERILATOR_DIR = /home/zhang/verilator_testbench
 TEST_DIR = ./build/test
 
 export PATH := $(PATH):$(abspath ./utils)
@@ -9,7 +9,7 @@ vivado:
 	mill -i __.runMain core.MakeVivadoVerilog $(VIVADO_DIR)
 
 verilator:
-	mkdir -p $(VERILATOR_DIR)
+	#mkdir -p $(VERILATOR_DIR)
 	mill -i __.runMain core.MakeVerilatorVerilog $(VERILATOR_DIR)
 
 test:

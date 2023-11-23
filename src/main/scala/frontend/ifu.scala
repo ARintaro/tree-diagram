@@ -59,7 +59,7 @@ class InstructionFetchUnit extends Module {
 
   // 在取指二阶段进行快速解码
   val fetchPC =
-    (0 until CacheConfig.icache.cacheLineSize).map(i => pc.io.vaddr + (i * 4).U)
+    (0 until CacheConfig.icache.cacheLineSize).map(i => tlb.f2_io.paddr.bits + (i * 4).U)
   val preDecs = VecInit(
     Seq.fill(CacheConfig.icache.cacheLineSize)(Module(new PreDecoder).io)
   )
