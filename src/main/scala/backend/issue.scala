@@ -7,8 +7,6 @@ class CompressedIssueQueue[T <: Data with IssueInstruction](
     gen: T,
     // 队列大小
     size: Int,
-    // 每周期的最大压缩数
-    maxMove: Int,
     // 在底部仲裁发射的宽度
     issueScanWidth: Int
 ) extends Module {
@@ -55,7 +53,7 @@ class CompressedIssueQueue[T <: Data with IssueInstruction](
   }.otherwise {
 
     when(issueSucc) {
-      for (i <- 0 until size) {
+      for (i <- 0 until size - 1) {
         when(moveMask(i)) {
           ram(i) := ram(i + 1)
         }

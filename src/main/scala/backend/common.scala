@@ -50,6 +50,7 @@ object BackendUtils {
 
   def GetBusy() : UInt = {
     val busy = Wire(UInt(BackendConfig.physicalRegNum.W))
+    BoringUtils.addSink(busy, "busy")
     return busy
   }
 

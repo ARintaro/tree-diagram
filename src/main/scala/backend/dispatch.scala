@@ -5,7 +5,7 @@ import chisel3.util._
 
 class DispatchUnit extends Module with InstructionConstants {
   val io = IO(new Bundle {
-    val in = Vec(FrontendConfig.decoderNum, new PipelineInstruction)
+    val in = Vec(FrontendConfig.decoderNum, Input(new PipelineInstruction))
     val done = Output(Bool())
 
     // 整数流水线，每条流水线一个入队端口
@@ -30,13 +30,17 @@ class DispatchUnit extends Module with InstructionConstants {
   val succ = intSucc && memSucc
   io.done := succ
 
+  intIssue.foreach(_ := false.B)
+  memIssue.foreach(_ := false.B)
   io.ints.zip(intIssue).foreach {
     case (x, y) => {
+      x := DontCare
       x.valid := y && succ
     }
   }
   io.mem.zip(memIssue).foreach {
     case (x, y) => {
+      x := DontCare
       x.valid := y && succ
     }
   }
@@ -50,7 +54,7 @@ class DispatchUnit extends Module with InstructionConstants {
     val selIdx = PriorityEncoder(restInt)
 
     intIssue(outIdx) := rest
-    io.ints(outIdx).bits := io.in(selIdx)
+    io.ints(outIdx).bits := io.in(selIdx).GetIntInstruction()
 
     restInt = restInt & (~UIntToOH(selIdx))
   }
@@ -61,7 +65,7 @@ class DispatchUnit extends Module with InstructionConstants {
     val selIdx = PriorityEncoder(restMem)
 
     memIssue(i) := rest
-    io.mem(i).bits := io.in(selIdx)
+    io.mem(i).bits := io.in(selIdx).GetMemoryInstruction()
 
     restMem = restMem & (~UIntToOH(selIdx))
   }

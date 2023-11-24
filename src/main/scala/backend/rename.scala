@@ -35,8 +35,8 @@ class CommitPregRequest extends Bundle {
 
 class RenameRequests extends Bundle {
   // 重命名请求
-  val news = Vec(FrontendConfig.decoderNum, Flipped(new NewPregRequest))
-  val finds = Vec(FrontendConfig.decoderNum, Vec(2, Flipped(new FindPregRequest)))
+  val news = Vec(FrontendConfig.decoderNum, new NewPregRequest)
+  val finds = Vec(FrontendConfig.decoderNum, Vec(2, new FindPregRequest))
   // 重命名请求是否成功
   val succ = Input(Bool())
 }
@@ -58,7 +58,7 @@ class RenameTable extends Module {
   // speculative preg free list
   // 如果为0表示已经被占用
   // 利用-1初始化为全1
-  val sfree = RegInit(-1.S(BackendConfig.physicalRegNum.W).asTypeOf(UInt(BackendConfig.physicalRegNum.W)))
+  val sfree = RegInit(UIntUtils.GetAllOne(BackendConfig.physicalRegNum))
 
   val busy = RegInit(0.U(BackendConfig.physicalRegNum.W))
 
@@ -81,6 +81,7 @@ class RenameTable extends Module {
         y.preg := DontCare
       })
     )
+    io.renames.succ := false.B
     busy := 0.U
 
     recovering := false.B
@@ -228,7 +229,7 @@ class RenameUnit extends Module
     val nextDone = Input(Bool())
   })
 
-  val renameTableIO = IO(Flipped(new RenameRequests))
+  val renameTableIO = IO(new RenameRequests)
   val robIO = IO(Flipped(new RobNewIO))
 
   val ctrlIO = IO(new Bundle {
@@ -236,6 +237,7 @@ class RenameUnit extends Module
   })
 
   val outBuffer = RegInit(VecInit(Seq.fill(FrontendConfig.decoderNum)(0.U.asTypeOf(new PipelineInstruction))))
+  io.out <> outBuffer
   
   // 进行寄存器重命名
 
@@ -266,6 +268,8 @@ class RenameUnit extends Module
     robIO.news(i).rdPidx := renameTableIO.news(i).pregIdx
     robIO.news(i).exception := io.in(i).exception
     robIO.news(i).exceptionCode := io.in(i).exceptionCode
+    robIO.news(i).predictJump := io.in(i).predictJump
+    robIO.news(i).predictJumpTarget := io.in(i).predictTarget
 
   }
 
@@ -281,6 +285,10 @@ class RenameUnit extends Module
       ins.writeRd := io.in(i).writeRd
       ins.unique := io.in(i).unique
       ins.flush := io.in(i).flush
+      ins.imm := io.in(i).imm
+      ins.iqtType := io.in(i).iqtType
+      ins.memLen := io.in(i).memLen
+      ins.memType := io.in(i).memType
 
       ins.prs1 := renameTableIO.finds(i)(0).preg.pregIdx
       ins.prs2 := renameTableIO.finds(i)(1).preg.pregIdx
@@ -295,8 +303,10 @@ class RenameUnit extends Module
       
       outBuffer(i) := ins
     }
-  } .elsewhen(ctrlIO.flush) {
-    outBuffer.foreach(_.valid := false.B)
+  } .elsewhen(ctrlIO.flush || io.nextDone) {
+    outBuffer.foreach(x => {
+      x.valid := false.B
+    })
   }
 
 }

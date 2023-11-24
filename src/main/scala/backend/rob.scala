@@ -55,7 +55,7 @@ class RobCompleteRequest extends Bundle {
   val jump = Output(Bool())
   val jumpTarget = Output(UInt(BusConfig.ADDR_WIDTH))
   val exception = Output(Bool())
-  val exceptionCode = Output(UInt(InsConfig.EXECEPTION_WIDTH))
+  val exceptionCode = Output(UInt(InsConfig.EXCEPTION_WIDTH))
 }
 
 class ReorderBuffer extends Module {
@@ -89,6 +89,13 @@ class ReorderBuffer extends Module {
 
   newIO.restSize := BackendConfig.robSize.U - count
 
+  // 默认不发起重定向和冲刷请求
+
+  io.redirect.valid := false.B
+  io.redirect.bits := DontCare
+
+  ctrlIO.flushPipeline := false.B
+
   // 处理rename阶段发送的ROB新建请求
 
   for (i <- 0 until FrontendConfig.decoderNum) {
@@ -114,6 +121,12 @@ class ReorderBuffer extends Module {
   }
 
   tail := tail + newIO.newsCount
+
+  // 处理流水线中查询pc的请求
+  for (i <- 0 until BackendConfig.intPipelineNum) {
+    val pcRead = readPcIO(i)
+    pcRead.vaddr := entries(pcRead.robIdx).vaddr
+  }
 
   // 处理流水线写回的complete请求
   for (i <- 0 until BackendConfig.pipelineNum) {
@@ -181,6 +194,8 @@ class ReorderBuffer extends Module {
       }
     }
   }
+
+  head := head + PopCount(commitValid)
 
 
   val flush = ctrlIO.flushPipeline

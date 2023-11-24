@@ -95,6 +95,9 @@ object BackendConfig {
   val maxCommitsNum = 3 
   
   val intPipelineNum = 3
+  val intQueueSize = 8
+  val intQueueScanWidth = 4
+
   val memPipelineNum = 1
   val pipelineNum = intPipelineNum
   val wakeUpNum = pipelineNum

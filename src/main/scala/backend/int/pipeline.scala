@@ -18,13 +18,14 @@ class IntPipeline(index: Int) extends Module
     val flush = Input(Bool())
   })
 
-  BackendUtils.BroadcastWakeup(index, io.in.bits.prd, io.in.valid && io.in.bits.writeRd)
+  val wakeupValid = WireInit(io.in.valid && io.in.bits.writeRd)
+  BackendUtils.BroadcastWakeup(index, io.in.bits.prd, wakeupValid)
   io.in.ready := true.B
 
   val f0_ins = RegInit(0.U.asTypeOf(new IntInstruction))
   val f0_valid = RegInit(false.B)
 
-  f0_ins := Mux(io.in.valid, io.in.bits, 0.U)
+  f0_ins := Mux(io.in.valid, io.in.bits, 0.U.asTypeOf(new IntInstruction))
   f0_valid := io.in.valid
 
   // F1 读寄存器阶段
@@ -94,7 +95,7 @@ class IntPipeline(index: Int) extends Module
 
   // F3 写回阶段
   
-  val writeValid = f2_valid && f2_writeRd
+  val writeValid = WireInit(f2_valid && f2_writeRd)
   BackendUtils.BroadcastSideway(index, f2_rd, f2_aluResult, writeValid)
 
   io.regWrite.valid := writeValid
@@ -106,6 +107,8 @@ class IntPipeline(index: Int) extends Module
   io.robComplete.robIdx := f2_robIddx
   io.robComplete.jump := f2_jump
   io.robComplete.jumpTarget := f2_jumpTarget
+  io.robComplete.exception := false.B
+  io.robComplete.exceptionCode := 0.U
 
 
   // Flush 逻辑
@@ -118,3 +121,4 @@ class IntPipeline(index: Int) extends Module
     io.robComplete.valid := false.B
   }
 }
+
