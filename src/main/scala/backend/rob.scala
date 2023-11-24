@@ -18,10 +18,8 @@ class RobEntry extends Bundle {
   val jumpTarget = UInt(BusConfig.ADDR_WIDTH)
 
   val exception = Bool()
-  val exceptionCode = UInt(InsConfig.EXECEPTION_WIDTH)
-
-  // TODO : 访存相关记录
-
+  val exceptionCode = UInt(InsConfig.EXCEPTION_WIDTH)
+  
 }
 
 class NewRobRequest extends Bundle {
@@ -34,7 +32,7 @@ class NewRobRequest extends Bundle {
   val predictJump = Input(Bool())
   val predictJumpTarget = Input(UInt(BusConfig.ADDR_WIDTH))
   val exception = Input(Bool())
-  val exceptionCode = Input(UInt(InsConfig.EXECEPTION_WIDTH))
+  val exceptionCode = Input(UInt(InsConfig.EXCEPTION_WIDTH))
 
   val idx = Output(UInt(BackendConfig.robSize.W))
 }

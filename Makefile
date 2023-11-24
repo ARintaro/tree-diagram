@@ -1,5 +1,5 @@
-VIVADO_DIR = /mnt/d/computer_arc/for_lab2/cod23-zhangzuo21/thinpad_top.srcs/sources_1/new
-VERILATOR_DIR = /home/zhang/verilator_testbench
+VIVADO_DIR = ./build/vivado
+VERILATOR_DIR = ./build/verilator
 TEST_DIR = ./build/test
 
 export PATH := $(PATH):$(abspath ./utils)

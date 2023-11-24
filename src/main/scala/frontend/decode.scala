@@ -4,6 +4,8 @@ import chisel3._
 import chisel3.util._
 
 import RV32IPattern._
+import InsConfig._
+import InsConfig.ExceptionCode._
 
 class Decoder extends Module with InstructionConstants {
   val io = IO(new Bundle {
@@ -24,48 +26,50 @@ class Decoder extends Module with InstructionConstants {
   io.out.valid := io.valid
 
   val signals = ListLookup(data,
-                        /* 0       , 1       , 2       , 3       , 4      , 5        , 6      , 7       , 8       , 9       */ 
-                        /* aluType , bruType , selOP1  , selOP2  , writeRd, immType  , error  , iqtType , memType, memLen   */
-    List(                  ALU_ADD , BRU_NONE, OP1_RS1 , OP2_RS2 , false.B, IMMT_I   , true.B , IQT_INT , false.B , MEM_WORD),
+                        /* 0       , 1       , 2       , 3       , 4      , 5        , 6        , 7       , 8       , 9       , 10           */ 
+                        /* aluType , bruType , selOP1  , selOP2  , writeRd, immType  , exception, iqtType , memType , memLen  , exceptionCode*/
+    List(                  ALU_ADD , BRU_NONE, OP1_RS1 , OP2_RS2 , false.B, IMMT_I   , true.B   , IQT_INT , false.B , MEM_WORD, EC_ILLEGAL   ),
     Array(      
-      luiPattern   -> List(ALU_ADD , BRU_NONE, OP1_ZERO, OP2_IMM , true.B , IMMT_U   , false.B, IQT_INT , false.B , MEM_WORD),
-      auipcPattern -> List(ALU_ADD , BRU_NONE, OP1_PC  , OP2_IMM , true.B , IMMT_U   , false.B, IQT_INT , false.B , MEM_WORD),
-      jalPattern   -> List(ALU_ADD , BRU_NONE, OP1_PC  , OP2_FOUR, true.B , IMMT_J   , false.B, IQT_INT , false.B , MEM_WORD),
-      jalrPattern  -> List(ALU_ADD , BRU_JALR, OP1_PC  , OP2_FOUR, true.B , IMMT_I   , false.B, IQT_INT , false.B , MEM_WORD),
-      beqPattern   -> List(ALU_ADD , BRU_EQ  , OP1_PC  , OP2_IMM , false.B, IMMT_B   , false.B, IQT_INT , false.B , MEM_WORD),
-      bnePattern   -> List(ALU_ADD , BRU_NE  , OP1_PC  , OP2_IMM , false.B, IMMT_B   , false.B, IQT_INT , false.B , MEM_WORD),
-      bltPattern   -> List(ALU_ADD , BRU_LT  , OP1_PC  , OP2_IMM , false.B, IMMT_B   , false.B, IQT_INT , false.B , MEM_WORD),
-      bgePattern   -> List(ALU_ADD , BRU_GE  , OP1_PC  , OP2_IMM , false.B, IMMT_B   , false.B, IQT_INT , false.B , MEM_WORD),
-      bltuPattern  -> List(ALU_ADD , BRU_LTU , OP1_PC  , OP2_IMM , false.B, IMMT_B   , false.B, IQT_INT , false.B , MEM_WORD),
-      bgeuPattern  -> List(ALU_ADD , BRU_GEU , OP1_PC  , OP2_IMM , false.B, IMMT_B   , false.B, IQT_INT , false.B , MEM_WORD),
-      lbPattern    -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B, IQT_MEM , false.B , MEM_BYTE),
-      lhPattern    -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B, IQT_MEM , false.B , MEM_HALF),
-      lwPattern    -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B, IQT_MEM , false.B , MEM_WORD),
-      lbuPattern   -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B, IQT_MEM , false.B , MEM_BYTE),
-      lhuPattern   -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B, IQT_MEM , false.B , MEM_HALF),
-      sbPattern    -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_IMM , false.B, IMMT_S   , false.B, IQT_MEM , true.B  , MEM_BYTE),
-      shPattern    -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_IMM , false.B, IMMT_S   , false.B, IQT_MEM , true.B  , MEM_HALF),
-      swPattern    -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_IMM , false.B, IMMT_S   , false.B, IQT_MEM , true.B  , MEM_WORD),
-      addiPattern  -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B, IQT_INT , false.B , MEM_WORD),
-      sltiPattern  -> List(ALU_SLT , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B, IQT_INT , false.B , MEM_WORD),
-      sltiuPattern -> List(ALU_SLTU, BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B, IQT_INT , false.B , MEM_WORD),
-      xoriPattern  -> List(ALU_XOR , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B, IQT_INT , false.B , MEM_WORD),
-      oriPattern   -> List(ALU_OR  , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B, IQT_INT , false.B , MEM_WORD),
-      andiPattern  -> List(ALU_AND , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B, IQT_INT , false.B , MEM_WORD),
-      slliPattern  -> List(ALU_SLL , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B, IQT_INT , false.B , MEM_WORD),
-      srliPattern  -> List(ALU_SRL , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B, IQT_INT , false.B , MEM_WORD),
-      sraiPattern  -> List(ALU_SRA , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B, IQT_INT , false.B , MEM_WORD),
-      addPattern   -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B, IQT_INT , false.B , MEM_WORD),
-      subPattern   -> List(ALU_SUB , BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B, IQT_INT , false.B , MEM_WORD),
-      sllPattern   -> List(ALU_SLL , BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B, IQT_INT , false.B , MEM_WORD),
-      sltPattern   -> List(ALU_SLT , BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B, IQT_INT , false.B , MEM_WORD),
-      sltuPattern  -> List(ALU_SLTU, BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B, IQT_INT , false.B , MEM_WORD),
-      xorPattern   -> List(ALU_XOR , BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B, IQT_INT , false.B , MEM_WORD),
-      srlPattern   -> List(ALU_SRL , BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B, IQT_INT , false.B , MEM_WORD),
-      sraPattern   -> List(ALU_SRA , BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B, IQT_INT , false.B , MEM_WORD),
-      orPattern    -> List(ALU_OR  , BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B, IQT_INT , false.B , MEM_WORD),
-      andPattern   -> List(ALU_AND , BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B, IQT_INT , false.B , MEM_WORD),
-  ))
+      luiPattern   -> List(ALU_ADD , BRU_NONE, OP1_ZERO, OP2_IMM , true.B , IMMT_U   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      auipcPattern -> List(ALU_ADD , BRU_NONE, OP1_PC  , OP2_IMM , true.B , IMMT_U   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      jalPattern   -> List(ALU_ADD , BRU_NONE, OP1_PC  , OP2_FOUR, true.B , IMMT_J   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      jalrPattern  -> List(ALU_ADD , BRU_JALR, OP1_PC  , OP2_FOUR, true.B , IMMT_I   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      beqPattern   -> List(ALU_ADD , BRU_EQ  , OP1_PC  , OP2_IMM , false.B, IMMT_B   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      bnePattern   -> List(ALU_ADD , BRU_NE  , OP1_PC  , OP2_IMM , false.B, IMMT_B   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      bltPattern   -> List(ALU_ADD , BRU_LT  , OP1_PC  , OP2_IMM , false.B, IMMT_B   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      bgePattern   -> List(ALU_ADD , BRU_GE  , OP1_PC  , OP2_IMM , false.B, IMMT_B   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      bltuPattern  -> List(ALU_ADD , BRU_LTU , OP1_PC  , OP2_IMM , false.B, IMMT_B   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      bgeuPattern  -> List(ALU_ADD , BRU_GEU , OP1_PC  , OP2_IMM , false.B, IMMT_B   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      lbPattern    -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B  , IQT_MEM , false.B , MEM_BYTE, 0.U          ),
+      lhPattern    -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B  , IQT_MEM , false.B , MEM_HALF, 0.U          ),
+      lwPattern    -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B  , IQT_MEM , false.B , MEM_WORD, 0.U          ),
+      lbuPattern   -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B  , IQT_MEM , false.B , MEM_BYTE, 0.U          ),
+      lhuPattern   -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B  , IQT_MEM , false.B , MEM_HALF, 0.U          ),
+      sbPattern    -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_IMM , false.B, IMMT_S   , false.B  , IQT_MEM , true.B  , MEM_BYTE, 0.U          ),
+      shPattern    -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_IMM , false.B, IMMT_S   , false.B  , IQT_MEM , true.B  , MEM_HALF, 0.U          ),
+      swPattern    -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_IMM , false.B, IMMT_S   , false.B  , IQT_MEM , true.B  , MEM_WORD, 0.U          ),
+      addiPattern  -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      sltiPattern  -> List(ALU_SLT , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      sltiuPattern -> List(ALU_SLTU, BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      xoriPattern  -> List(ALU_XOR , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      oriPattern   -> List(ALU_OR  , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      andiPattern  -> List(ALU_AND , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      slliPattern  -> List(ALU_SLL , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      srliPattern  -> List(ALU_SRL , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      sraiPattern  -> List(ALU_SRA , BRU_NONE, OP1_RS1 , OP2_IMM , true.B , IMMT_I   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      addPattern   -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      subPattern   -> List(ALU_SUB , BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      sllPattern   -> List(ALU_SLL , BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      sltPattern   -> List(ALU_SLT , BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      sltuPattern  -> List(ALU_SLTU, BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      xorPattern   -> List(ALU_XOR , BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      srlPattern   -> List(ALU_SRL , BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      sraPattern   -> List(ALU_SRA , BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      orPattern    -> List(ALU_OR  , BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      andPattern   -> List(ALU_AND , BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
+      ecallPattern -> List(ALU_ADD , BRU_NONE, OP1_ZERO, OP2_ZERO, false.B, IMMT_NONE, true.B   , IQT_INT , false.B , MEM_WORD, EC_U_ENV_CALL),
+      ebreakPattern-> List(ALU_ADD , BRU_NONE, OP1_ZERO, OP2_ZERO, false.B, IMMT_NONE, true.B   , IQT_INT , false.B , MEM_WORD, EC_BREAKPOINT),
+    ))
 
   io.out.aluType := signals(0)
   io.out.bruType := signals(1)
@@ -73,10 +77,11 @@ class Decoder extends Module with InstructionConstants {
   io.out.selOP2 := signals(3)
   io.out.writeRd := signals(4)
   io.out.immType := signals(5)
-  // io.out.error := signals(6)
+  io.out.exception := signals(6) | io.in.exception
   io.out.iqtType := signals(7)
   io.out.memType := signals(8)
-  io.out.memLenType := signals(9)
+  io.out.memLen := signals(9)
+  io.out.exceptionCode := Mux(io.in.exception, io.in.exceptionCode, signals(10))
 
   io.out.flush := false.B
   io.out.unique := false.B

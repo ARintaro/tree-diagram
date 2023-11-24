@@ -137,7 +137,7 @@ class MemoryInstruction
   val imm = UInt(32.W)
 
   val memType = Bool() // true: store, false: load
-  val memLen = UInt(MEM_LEN_TYPE)
+  val memLen = UInt(MEM_LEN_WIDTH)
 
   override def checkReady(busy: UInt): Bool = {
     return !busy(prs)
