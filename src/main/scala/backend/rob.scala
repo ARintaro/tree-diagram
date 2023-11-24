@@ -16,7 +16,7 @@ class RobEntry extends Bundle {
   val jumpTarget = UInt(BusConfig.ADDR_WIDTH)
 
   val exception = Bool()
-  val exceptionCode = UInt(InsConfig.EXECEPTION_WIDTH)
+  val exceptionCode = UInt(InsConfig.EXCEPTION_WIDTH)
   
 }
 
@@ -28,7 +28,7 @@ class NewRobRequest extends Bundle {
   val rdLidx = Input(UInt(5.W))
   val rdPidx = Input(UInt(BackendConfig.pregIdxWidth))
   val exception = Input(Bool())
-  val exceptionCode = Input(UInt(InsConfig.EXECEPTION_WIDTH))
+  val exceptionCode = Input(UInt(InsConfig.EXCEPTION_WIDTH))
 
 
   val idx = Output(UInt(BackendConfig.robSize.W))

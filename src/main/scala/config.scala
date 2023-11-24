@@ -26,7 +26,47 @@ object BusConfig {
 
 object InsConfig {
   val INS_WIDTH = 32.W
-  val EXECEPTION_WIDTH = 4.W
+
+  val EXCEPTION_WIDTH = 4.W
+  object ExceptionCode {
+    // Instruction Exceptions
+    val EC_IA_MISALIGNED     = "b0000".U // 指令地址对齐错误
+    val EC_IA_FAULT          = "b0001".U // 指令访问错误
+    val EC_ILLEGAL           = "b0010".U // 非法指令
+    val EC_BREAKPOINT        = "b0011".U // 断点
+
+    // Load/Store Exceptions
+    val EC_LA_MISALIGNED     = "b0100".U // 加载地址对齐错误
+    val EC_LA_FAULT          = "b0101".U // 加载访问错误
+    val EC_SAIA_MISALIGNED   = "b0110".U // 存储/原子操作地址对齐错误
+    val EC_SAIA_FAULT        = "b0111".U // 存储/原子操作访问错误
+
+    // Environment Call Exceptions
+    val EC_U_ENV_CALL        = "b1000".U // 从用户态调用环境调用指令 - User Environment Call
+    val EC_S_ENV_CALL        = "b1001".U // 从监管态调用环境调用指令 - Supervisor Environment Call
+    val EC_M_ENV_CALL        = "b1011".U // 从机器态调用环境调用指令 - Machine Environment Call
+
+    // Page Fault Exceptions
+    val EC_IA_PAGE_FAULT     = "b1100".U // 指令页错误
+    val EC_LA_PAGE_FAULT     = "b1101".U // 加载页错误
+    val EC_SAIA_PAGE_FAULT   = "b1111".U // 存储/原子操作页错误
+
+    // Software Interrupts
+    val IT_U_SOFT_INT        = "b0000".U // 用户软件中断
+    val IT_S_SOFT_INT        = "b0001".U // 监管软件中断
+    val IT_M_SOFT_INT        = "b0011".U // 机器软件中断
+
+    // Timer Interrupts
+    val IT_U_TIMER_INT       = "b0100".U // 用户定时器中断
+    val IT_S_TIMER_INT       = "b0101".U // 监管定时器中断
+    val IT_M_TIMER_INT       = "b0111".U // 机器定时器中断
+
+    // External Interrupts
+    val IT_U_EXT_INT         = "b1000".U // 用户外部中断
+    val IT_S_EXT_INT         = "b1001".U // 监管外部中断
+    val IT_M_EXT_INT         = "b1011".U // 机器外部中断
+  }
+
 
   object Opcode {
     val jal = "b1101111".U

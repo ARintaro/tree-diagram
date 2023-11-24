@@ -251,7 +251,7 @@ class RenameUnit extends Module
   io.done := succ
 
   for (i <- 0 until FrontendConfig.decoderNum) {
-    // 连接reanmeTable
+    // 连接renameTable
     renameTableIO.news(i).valid := io.in(i).valid && io.in(i).writeRd && robSucc
     renameTableIO.finds(i)(0).lregIdx := io.in(i).rs1
     renameTableIO.finds(i)(1).lregIdx := io.in(i).rs2
