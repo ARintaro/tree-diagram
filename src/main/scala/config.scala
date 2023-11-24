@@ -8,8 +8,15 @@ object GenConfig {
 }
 
 object DebugConfig {
-  val debug = true
-  val print_state = true
+  var debug = true
+
+  var printRenameUnitIn = true
+  
+  var printRenameAlloc = true
+  var printRenameFree = true
+
+  var printRenameNew = true
+
 }
 
 object SramConfig {

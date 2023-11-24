@@ -13,6 +13,7 @@ class RenameTableEntry extends Bundle {
 class NewPregRequest extends Bundle {
   // 注意写x0的话这里的valid应该设成false
   val valid = Output(Bool())
+  val lregIdx = Output(UInt(5.W))
 
   // 返回的物理寄存器下标
   val pregIdx = Input(UInt(BackendConfig.pregIdxWidth))
@@ -122,14 +123,19 @@ class RenameTable extends Module {
         // 更新目前的失败状态
         // 更新curRT与curFree
 
-        val select = PriorityEncoderOH(curFree)
+        val select = Mux(req.valid, PriorityEncoderOH(curFree), 0.U)
         val selectIdx = OHToUInt(select)
 
         val newRT = Wire(Vec(32, new RenameTableEntry))
         newRT := curRT
         when(req.valid) {
-          newRT(selectIdx).valid := true.B
-          newRT(selectIdx).pregIdx := selectIdx
+          newRT(req.lregIdx).valid := true.B
+          newRT(req.lregIdx).pregIdx := selectIdx
+
+          if (DebugConfig.printRenameAlloc) {
+            DebugUtils.Print(cf"Rename alloc: lregIdx: ${req.lregIdx} -> pregIdx: ${selectIdx}")
+          }
+
         }
 
         req.pregIdx := selectIdx
@@ -183,6 +189,15 @@ class RenameTable extends Module {
         when(req.valid) {
           newRT(req.lregIdx).valid := true.B
           newRT(req.lregIdx).pregIdx := req.pregIdx
+
+          if (DebugConfig.printRenameFree) {
+            when (lastEntry.valid) {
+              DebugUtils.Print(cf"Rename commit: lregIdx: ${req.lregIdx} -> pregIdx: ${req.pregIdx}, freePreg: ${lastEntry.pregIdx}")
+            }.otherwise {
+              DebugUtils.Print(cf"Rename commit: lregIdx: ${req.lregIdx} -> pregIdx: ${req.pregIdx}")
+            }
+          }
+
         }
 
         curRT = newRT
@@ -257,6 +272,7 @@ class RenameUnit extends Module
   for (i <- 0 until FrontendConfig.decoderNum) {
     // 连接renameTable
     renameTableIO.news(i).valid := io.in(i).valid && io.in(i).writeRd && robSucc
+    renameTableIO.news(i).lregIdx := io.in(i).rd
     renameTableIO.finds(i)(0).lregIdx := io.in(i).rs1
     renameTableIO.finds(i)(1).lregIdx := io.in(i).rs2
 
