@@ -65,7 +65,7 @@ class RenameTable extends Module {
   // arch rename table
   val art = RegInit(VecInit(Seq.fill(32)(0.U.asTypeOf(new RenameTableEntry))))
   // arch preg free list
-  val afree = RegInit(-1.S(BackendConfig.physicalRegNum.W).asTypeOf(UInt(BackendConfig.physicalRegNum.W)))
+  val afree = RegInit(UIntUtils.GetAllOne(BackendConfig.physicalRegNum))
 
   val recovering = RegInit(false.B)
 
@@ -83,8 +83,8 @@ class RenameTable extends Module {
     )
     io.renames.succ := false.B
     busy := 0.U
-
     recovering := false.B
+    
   }.otherwise {
     // 处理news和finds
 

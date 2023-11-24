@@ -82,6 +82,10 @@ class Decoder extends Module with InstructionConstants {
   io.out.memType := signals(8)
   io.out.memLen := signals(9)
   io.out.exceptionCode := Mux(io.in.exception, io.in.exceptionCode, signals(10))
+  
+  // TODO : Predict Jump
+  io.out.predictJump := false.B
+  io.out.predictTarget := 0.U
 
   io.out.flush := false.B
   io.out.unique := false.B

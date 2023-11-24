@@ -87,7 +87,7 @@ class ReorderBuffer extends Module {
 
   val count = tail - head
 
-  newIO.restSize := BackendConfig.robSize.U - count
+  newIO.restSize := (BackendConfig.robSize - 1).U - count
 
   // 默认不发起重定向和冲刷请求
 
@@ -206,6 +206,6 @@ class ReorderBuffer extends Module {
 
 
 
-  assert(newIO.newsCount < newIO.restSize)
+  assert(newIO.newsCount <= newIO.restSize)
   assert(PopCount(newIO.news.map(_.valid)) === newIO.newsCount)
 }
