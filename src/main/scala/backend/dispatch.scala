@@ -47,9 +47,11 @@ class DispatchUnit extends Module with InstructionConstants {
 
   // TODO : 根据队列剩余容量的Dispatch
   var restInt = isInt
+  var lastAlloc = intAllocBegin
   for (i <- 0 until BackendConfig.intPipelineNum) {
-    val outIdx = intAllocBegin + i.U
-
+    val inc = lastAlloc + 1.U
+    val outIdx = Mux(inc === BackendConfig.intPipelineNum.U, 0.U, inc)
+    
     val rest = restInt.orR
     val selIdx = PriorityEncoder(restInt)
 
@@ -57,6 +59,7 @@ class DispatchUnit extends Module with InstructionConstants {
     io.ints(outIdx).bits := io.in(selIdx).GetIntInstruction()
 
     restInt = restInt & (~UIntToOH(selIdx))
+    lastAlloc = outIdx
   }
 
   var restMem = isMem
@@ -71,7 +74,7 @@ class DispatchUnit extends Module with InstructionConstants {
   }
 
   when(succ) {
-    intAllocBegin := intAllocBegin + PopCount(isInt)
+    intAllocBegin := UIntUtils.AddMod(BackendConfig.intPipelineNum)(intAllocBegin, PopCount(isInt))
   }
 
   require(BackendConfig.intPipelineNum >= FrontendConfig.decoderNum)
