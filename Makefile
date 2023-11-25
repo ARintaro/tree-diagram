@@ -1,5 +1,5 @@
 VIVADO_DIR = ./build/vivado
-VERILATOR_DIR = ./build/verilator
+VERILATOR_DIR = /mnt/e/computer/guaning/backend/naive_tb/
 TEST_DIR = ./build/test
 
 export PATH := $(PATH):$(abspath ./utils)

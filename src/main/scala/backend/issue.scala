@@ -92,7 +92,18 @@ class FifoIssueQueue[T <: Data with IssueInstruction](
 
   queue.ctrlIO.flush := ctrlIO.flush
   queue.io.enq <> io.enq
-  queue.io.deq(0) <> io.issue
+
+  val front = queue.io.deq(0)
+  val busy = BackendUtils.GetBusy()
+  when (io.issue.ready && front.valid && front.bits.checkReady(busy)) {
+    io.issue.valid := true.B
+    io.issue.bits := front.bits
+    front.ready := true.B
+  } .otherwise {
+    queue.io.deq(0).ready := false.B
+    io.issue.valid := false.B
+    io.issue.bits := DontCare
+  }
 }
 
 class IntInstruction
@@ -139,6 +150,19 @@ class MemoryInstruction
 
   override def checkReady(busy: UInt): Bool = {
     return !busy(prs)
+  }
+
+  def getStoreIns(): StoreIns = {
+    val store = Wire(new StoreIns)
+    
+    // TODO 
+    
+    store
+  }
+
+  def getBytes(): UInt = {
+    // TODO 
+    return 0.U
   }
 
 }

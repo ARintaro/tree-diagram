@@ -1,7 +1,7 @@
 package core
 
 import chisel3._
-import chisel3.util.PriorityEncoderOH
+import chisel3.util._
 
 object MaskUtil {
   def GetPrefixMask(width: Int)(prefixLength: UInt): UInt = {
@@ -43,5 +43,14 @@ object MaskUtil {
     }
 
     sels
+  }
+
+  def GetWordMask(bytes : UInt) : UInt = {
+    return Cat(
+      Fill(8, bytes(3)),
+      Fill(8, bytes(2)),
+      Fill(8, bytes(1)),
+      Fill(8, bytes(0))
+    )
   }
 }

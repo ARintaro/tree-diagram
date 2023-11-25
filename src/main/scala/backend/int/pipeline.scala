@@ -119,6 +119,8 @@ class IntPipeline(index: Int) extends Module
     f2_valid := false.B
     io.regWrite.valid := false.B
     io.robComplete.valid := false.B
+    
+    assert(io.in.valid)
   }
 }
 
