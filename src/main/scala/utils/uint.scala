@@ -9,6 +9,10 @@ object UIntUtils {
 	("b" + "1" * width).U(width.W)
   }
 
+  def GetAllOneWithoutZero(width : Int) = {
+	("b" + "1" * (width - 1) + "0").U(width.W)
+  }
+
   def AddMod(mod : Int)(x : UInt, y : UInt) = {
 	val sum = x +& y
 	Mux(sum >= mod.U, sum - mod.U, sum)

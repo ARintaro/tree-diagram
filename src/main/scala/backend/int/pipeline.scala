@@ -57,15 +57,18 @@ class IntPipeline(index: Int) extends Module
 
   val sideway = BackendUtils.SearchSideway(f1_ins.prs1, f1_ins.prs2)
 
+  val reg1 = Mux(sideway(0).valid, sideway(0).value, f1_src1)
+  val reg2 = Mux(sideway(1).valid, sideway(1).value, f1_src2)
+
   val src1 = MuxLookup(f1_ins.selOP1, 0.U)(
     Seq(
-      OP1_RS1 -> Mux(sideway(0).valid, sideway(0).value, f1_src1),
+      OP1_RS1 -> reg1,
       OP1_PC -> f1_pc
     )
   )
   val src2 = MuxLookup(f1_ins.selOP2, 0.U)(
     Seq(
-      OP2_RS2 -> Mux(sideway(1).valid, sideway(1).value, f1_src2),
+      OP2_RS2 -> reg2,
       OP2_IMM -> f1_ins.imm,
       OP2_FOUR -> 4.U
     )
@@ -79,8 +82,8 @@ class IntPipeline(index: Int) extends Module
   alu.io.aluType := f1_ins.aluType
 
   bru.io.pc := f1_pc
-  bru.io.rs1 := src1
-  bru.io.rs2 := src2
+  bru.io.rs1 := reg1
+  bru.io.rs2 := reg2
   bru.io.bruType := f1_ins.bruType
   bru.io.imm := f1_ins.imm
   bru.io.aluOut := alu.io.out

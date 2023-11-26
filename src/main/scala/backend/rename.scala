@@ -22,7 +22,7 @@ class NewPregRequest extends Bundle {
 class FindPregRequest extends Bundle {
   val lregIdx = Output(UInt(5.W))
 
-  val preg = Input(new RenameTableEntry())
+  val preg = Input(UInt(BackendConfig.pregIdxWidth))
 }
 
 class CommitPregRequest extends Bundle {
@@ -59,14 +59,14 @@ class RenameTable extends Module {
   // speculative preg free list
   // 如果为0表示已经被占用
   // 利用-1初始化为全1
-  val sfree = RegInit(UIntUtils.GetAllOne(BackendConfig.physicalRegNum))
+  val sfree = RegInit(UIntUtils.GetAllOneWithoutZero(BackendConfig.physicalRegNum))
 
   val busy = RegInit(0.U(BackendConfig.physicalRegNum.W))
 
   // arch rename table
   val art = RegInit(VecInit(Seq.fill(32)(0.U.asTypeOf(new RenameTableEntry))))
   // arch preg free list
-  val afree = RegInit(UIntUtils.GetAllOne(BackendConfig.physicalRegNum))
+  val afree = RegInit(UIntUtils.GetAllOneWithoutZero(BackendConfig.physicalRegNum))
 
   val recovering = RegInit(false.B)
 
@@ -116,7 +116,8 @@ class RenameTable extends Module {
         // 先处理Find，避免读写逻辑寄存器相同的情况
         val finds = io.renames.finds(i)
         for (j <- 0 until 2) {
-          finds(j).preg := curRT(finds(j).lregIdx)
+          val entry = curRT(finds(j).lregIdx)
+          finds(j).preg := Mux(entry.valid, entry.pregIdx, 0.U)
         }
 
         val req = io.renames.news(i)
@@ -222,6 +223,8 @@ class RenameTable extends Module {
     assert((wakeupHot & allocs) === 0.U)
     assert((busy & allocs) === 0.U)
     assert((allocs & recycles) === 0.U)
+    assert(allocs(0) === 0.U)
+    assert(recycles(0) === 0.U)
 
     // 回滚信号
     // 注意flush拉高的这一周期的commit仍然需要有效
@@ -306,15 +309,8 @@ class RenameUnit extends Module
       ins.memLen := io.in(i).memLen
       ins.memType := io.in(i).memType
 
-      ins.prs1 := renameTableIO.finds(i)(0).preg.pregIdx
-      ins.prs2 := renameTableIO.finds(i)(1).preg.pregIdx
-      // 如果之前没有重命名过preg，说明其值仍然为0
-      when (!renameTableIO.finds(i)(0).preg.valid && io.in(i).selOP1 === OP1_RS1) {
-        ins.selOP1 := OP1_ZERO
-      }
-      when (!renameTableIO.finds(i)(1).preg.valid && io.in(i).selOP2 === OP2_RS2) {
-        ins.selOP2 := OP2_ZERO
-      }
+      ins.prs1 := renameTableIO.finds(i)(0)
+      ins.prs2 := renameTableIO.finds(i)(1)
       ins.prd := renameTableIO.news(i).pregIdx
       
       outBuffer(i) := ins

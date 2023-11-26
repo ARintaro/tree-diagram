@@ -152,7 +152,7 @@ class StoreBuffer(findPortNum: Int) extends Module {
   val queueValid = Wire(Vec(BackendConfig.storeBufferSize, Bool()))
   for (i <- 0 until BackendConfig.storeBufferSize) {
     queue(i) := stores(begin + i.U)
-	queueValid(i) := valid(begin + i.U)
+    queueValid(i) := valid(begin + i.U)
   }
 
   val revQueue = VecInit(queue.reverse)
@@ -161,13 +161,15 @@ class StoreBuffer(findPortNum: Int) extends Module {
   // 处理find
   for (i <- 0 until findPortNum) {
     val find = io.finds(i)
-	val findEq = VecInit(revQueue.map(x => x.paddr === find.paddr)).asUInt & revQueueValid.asUInt
-	val findHit = findEq.orR
-	val findHitIdx = PriorityEncoder(findEq)
+    val findEq = VecInit(
+      revQueue.map(x => x.paddr === find.paddr)
+    ).asUInt & revQueueValid.asUInt
+    val findHit = findEq.orR
+    val findHitIdx = PriorityEncoder(findEq)
 
-	find.valid := findHit
-	find.value := revQueue(findHitIdx).value
-	find.bytes := revQueue(findHitIdx).bytes
+    find.valid := findHit
+    find.value := revQueue(findHitIdx).value
+    find.bytes := revQueue(findHitIdx).bytes
   }
 
   val recover = RegInit(false.B)
