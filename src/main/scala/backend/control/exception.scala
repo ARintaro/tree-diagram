@@ -78,9 +78,9 @@ class ExceptionUnit extends Module with InstructionConstants {
     val mInterrupt = meiOccur | mtiOccur | msiOccur
     val sInterrupt = seiOccur | stiOccur | ssiOccur
     val interruptOccur = MuxCase(false.B, Seq(
-        (globalPrivilegeLevel === M_LEVEL) -> mInterrupt && status.mie,
-        (globalPrivilegeLevel === S_LEVEL) -> mInterrupt || (sInterrupt && status.sie)
-        (globalPrivilegeLevel === U_LEVEL) -> mInterrupt || sInterrupt
+        (globalPrivilegeLevel === M_LEVEL) -> (mInterrupt & status.mie),
+        (globalPrivilegeLevel === S_LEVEL) -> (mInterrupt | (sInterrupt & status.sie)),
+        (globalPrivilegeLevel === U_LEVEL) -> (mInterrupt | sInterrupt)
     ))
     val interruptCode = Wire(UInt(InsConfig.EXCEPTION_WIDTH))
     interruptCode := MuxCase(0.U, Seq(
@@ -140,10 +140,10 @@ class ExceptionUnit extends Module with InstructionConstants {
     val intoException = io.request.valid
     when(intoException){
         nextPC := Mux(delegException,
-            Mux(stvec.mode,
+            Mux(stvec.mode.asBool,
             Cat(stvec.base, Fill(2, 0.U)),
             Cat(stvec.base, Fill(2, 0.U)) + (io.request.exceptionCode << 2.U)),
-            Mux(mtvec.mode,
+            Mux(mtvec.mode.asBool,
             Cat(mtvec.base, Fill(2, 0.U)),
             Cat(mtvec.base, Fill(2, 0.U)) + (io.request.exceptionCode << 2.U))
         )
@@ -174,11 +174,11 @@ class ExceptionUnit extends Module with InstructionConstants {
     val rawWriteData = Mux(useUimm, io.in.bits.uimm, io.regRead.value)
     val csrWriteData = MuxLookup(io.in.bits.csrType, 0.U(32.W))(Seq(
         CSRRW -> rawWriteData,
-        CSRRS -> csrReadData | rawWriteData,
-        CSRRC -> csrReadData & (~rawWriteData),
+        CSRRS -> (csrReadData | rawWriteData),
+        CSRRC -> (csrReadData & (~rawWriteData)),
         CSRRWI -> rawWriteData,
-        CSRRSI -> csrReadData | rawWriteData,
-        CSRRCI -> csrReadData & (~rawWriteData)
+        CSRRSI -> (csrReadData | rawWriteData),
+        CSRRCI -> (csrReadData & (~rawWriteData))
     ))
     when(intoException){
         when(delegException){
@@ -208,25 +208,25 @@ class ExceptionUnit extends Module with InstructionConstants {
         }
     }.elsewhen(io.in.valid && io.in.bits.writeReg && canWrite){
         switch(io.in.bits.csrAddr){
-            is(CSR_MSTATUS_ADDR || CSR_SSTATUS_ADDR){
+            is(CSR_MSTATUS_ADDR){
                 status := csrWriteData.asTypeOf(new csr_status_t)
             }
-            is(CSR_MTVEC_ADDR || CSR_STVEC_ADDR){
+            is(CSR_MTVEC_ADDR){
                 mtvec := csrWriteData.asTypeOf(new csr_tvec_t)
             }
             is(CSR_MIP_ADDR){
                 ip := csrWriteData.asTypeOf(new csr_ip_t)
             }
-            is(CSR_MIE_ADDR || CSR_SIE_ADDR){
+            is(CSR_MIE_ADDR){
                 ie := csrWriteData.asTypeOf(new csr_ie_t)
             }
-            is(CSR_MSCRATCH_ADDR || CSR_SSCRATCH_ADDR){
+            is(CSR_MSCRATCH_ADDR ){
                 mscratch_reg := csrWriteData
             }
-            is(CSR_MEPC_ADDR || CSR_SEPC_ADDR){
+            is(CSR_MEPC_ADDR){
                 mepc_reg := csrWriteData
             }
-            is(CSR_MCAUSE_ADDR || CSR_SCAUSE_ADDR){
+            is(CSR_MCAUSE_ADDR){
                 mcause := csrWriteData.asTypeOf(new csr_cause_t)
             }
             is(CSR_MHARTID_ADDR){
@@ -240,6 +240,27 @@ class ExceptionUnit extends Module with InstructionConstants {
             }
             is(CSR_MTVAL_ADDR){
                 mtval_reg := csrWriteData
+            }
+            is(CSR_SSTATUS_ADDR){
+                status := csrWriteData.asTypeOf(new csr_status_t)
+            }
+            is(CSR_STVEC_ADDR){
+                stvec := csrWriteData.asTypeOf(new csr_tvec_t)
+            }
+            is(CSR_SIP_ADDR){
+                ip := csrWriteData.asTypeOf(new csr_ip_t)
+            }
+            is(CSR_SIE_ADDR){
+                ie := csrWriteData.asTypeOf(new csr_ie_t)
+            }
+            is(CSR_SSCRATCH_ADDR){
+                sscratch_reg := csrWriteData
+            }
+            is(CSR_SEPC_ADDR){
+                sepc_reg := csrWriteData
+            }
+            is(CSR_SCAUSE_ADDR){
+                scause := csrWriteData.asTypeOf(new csr_cause_t)
             }
         }
     }
