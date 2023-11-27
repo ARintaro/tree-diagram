@@ -16,7 +16,12 @@ object DebugConfig {
   var printRenameFree = true
 
   var printRenameNew = true
-
+  var printDispatch = true
+  var printWriteBack = true
+  var printIssue = true
+  var printPreg = true
+  var printLreg = true
+  var printFetch = true
 }
 
 object SramConfig {

@@ -112,7 +112,14 @@ class IntPipeline(index: Int) extends Module
   io.robComplete.jumpTarget := f2_jumpTarget
   io.robComplete.exception := false.B
   io.robComplete.exceptionCode := 0.U
-
+  if(DebugConfig.printWriteBack) {
+    when (io.regWrite.valid) {
+      DebugUtils.Print(cf"writeback, rd: ${f2_rd}, value: ${f2_aluResult}")
+    }
+    when(io.robComplete.valid) {
+      DebugUtils.Print(cf"complete, robidx: ${io.robComplete.robIdx}")
+    }
+  }
 
   // Flush 逻辑
   
@@ -123,7 +130,7 @@ class IntPipeline(index: Int) extends Module
     io.regWrite.valid := false.B
     io.robComplete.valid := false.B
     
-    assert(io.in.valid)
+    assert(!io.in.valid)
   }
 }
 

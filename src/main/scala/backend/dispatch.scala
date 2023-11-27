@@ -45,6 +45,14 @@ class DispatchUnit extends Module with InstructionConstants {
     }
   }
 
+  if (DebugConfig.printDispatch) {
+    for(i <- 0 until BackendConfig.intPipelineNum) {
+      when(io.ints(i).valid) {
+        DebugUtils.Print(cf"intpipeline${i} dispatched, robidx: ${io.ints(i).bits.robIdx}")
+      }
+    }
+  }
+
   // TODO : 根据队列剩余容量的Dispatch
   var restInt = isInt
   var lastAlloc = intAllocBegin

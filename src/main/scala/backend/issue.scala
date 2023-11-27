@@ -42,7 +42,7 @@ class CompressedIssueQueue[T <: Data with IssueInstruction](
   io.issue.valid := issueSucc
   io.issue.bits := ram(issueIdx)
 
-  val firstEmptyIdx = PriorityEncoder(!valid)
+  val firstEmptyIdx = PriorityEncoder(~valid)
   val doEnq = io.enq.valid && io.enq.ready
 
   val moveMask = ~MaskUtil.GetPrefixMask(size)(issueIdx)

@@ -38,6 +38,18 @@ class InstructionFetchUnit extends Module {
       "FetchQueue"
     )
   )
+  for(i <- 0 until CacheConfig.icache.cacheLineSize) {
+    fetchQueue.io.enq(i).bits.exception := false.B
+    fetchQueue.io.enq(i).bits.exceptionCode := 0.U
+  }
+
+  if(DebugConfig.printFetch) {
+    for(i <- 0 until CacheConfig.icache.cacheLineSize) {
+      when(fetchQueue.io.enq(i).ready && fetchQueue.io.enq(i).valid) {
+        DebugUtils.Print(cf"command ${fetchQueue.io.enq(i).bits} fetched")
+      }
+    }
+  }
 
   //暂时不处理flush
   fetchQueue.ctrlIO.flush := false.B

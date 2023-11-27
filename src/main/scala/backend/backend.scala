@@ -35,7 +35,13 @@ class Backend extends Module {
   val intQueues = (0 until BackendConfig.intPipelineNum).map(x => {
     Module(new CompressedIssueQueue(new IntInstruction, BackendConfig.intQueueSize, BackendConfig.intQueueScanWidth))
   })
-
+  if(DebugConfig.printIssue) {
+    for(i <- 0 until BackendConfig.intPipelineNum) {
+      when(intQueues(i).io.issue.valid && intQueues(i).io.issue.ready) {
+        DebugUtils.Print(cf"intIntruction issued, robidx${intQueues(i).io.issue.bits.robIdx}")
+      }
+    }
+  }
   // Rename Table
   renameTable.ctrlIO.recover := flush
 
