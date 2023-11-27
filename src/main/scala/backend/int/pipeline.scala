@@ -98,7 +98,7 @@ class IntPipeline(index: Int) extends Module
 
   // F3 写回阶段
   
-  val writeValid = WireInit(f2_valid && f2_writeRd)
+  val writeValid = f2_valid && f2_writeRd
   BackendUtils.BroadcastSideway(index, f2_rd, f2_aluResult, writeValid)
 
   io.regWrite.valid := writeValid
@@ -112,7 +112,8 @@ class IntPipeline(index: Int) extends Module
   io.robComplete.jumpTarget := f2_jumpTarget
   io.robComplete.exception := false.B
   io.robComplete.exceptionCode := 0.U
-
+  io.robComplete.storeBufferIdx := DontCare
+  io.robComplete.storeType := NO_STORE
 
   // Flush 逻辑
   
@@ -123,7 +124,7 @@ class IntPipeline(index: Int) extends Module
     io.regWrite.valid := false.B
     io.robComplete.valid := false.B
     
-    assert(io.in.valid)
+    assert(!io.in.valid)
   }
 }
 

@@ -130,6 +130,13 @@ trait InstructionConstants {
   def MEM_WORD = 0.U(MEM_LEN_WIDTH)
   def MEM_HALF = 1.U(MEM_LEN_WIDTH)
   def MEM_BYTE = 2.U(MEM_LEN_WIDTH)
+
+  // storeType
+  val STORE_TYPE_WIDTH = 2.W
+  def NO_STORE = 0.U(STORE_TYPE_WIDTH) // 不是store指令，也不是读取MMIO的load指令
+  def STORE_RAM = 1.U(STORE_TYPE_WIDTH) // store指令，写入RAM
+  def STORE_MMIO = 2.U(STORE_TYPE_WIDTH) // store指令，写入MMIO
+  def LOAD_MMIO = 3.U(STORE_TYPE_WIDTH) // load指令，读取MMIO
 }
 
 // 解码单元解码出的指令
@@ -233,8 +240,8 @@ class PipelineInstruction extends Bundle with InstructionConstants {
   def GetMemoryInstruction(): MemoryInstruction = {
     val inst = Wire(new MemoryInstruction)
     inst.robIdx := robIdx
-    inst.prs := prs1
-    inst.prd := prd
+    inst.prs1 := prs1
+    inst.prd_or_prs2 := Mux(memType, prs2, prd) 
     inst.imm := imm
     inst.memType := memType
     inst.memLen := memLen

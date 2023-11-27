@@ -139,8 +139,10 @@ class MemoryInstruction
     with IssueInstruction {
 
   val robIdx = UInt(BackendConfig.robIdxWidth)
-  val prs = UInt(BackendConfig.pregIdxWidth)
-  val prd = UInt(BackendConfig.pregIdxWidth)
+  val prs1 = UInt(BackendConfig.pregIdxWidth)
+  val prd_or_prs2 = UInt(BackendConfig.pregIdxWidth)
+  // lb rd, rs, imm 
+  // sw rs1, rs2, imm
 
   // TODO : 立即数压缩
   val imm = UInt(32.W)
@@ -149,20 +151,43 @@ class MemoryInstruction
   val memLen = UInt(MEM_LEN_WIDTH)
 
   override def checkReady(busy: UInt): Bool = {
-    return !busy(prs)
+    return Mux(memType, !busy(prs1) && !busy(prd_or_prs2), !busy(prs1))
   }
 
-  def getStoreIns(): StoreIns = {
+  def getStoreIns(paddr: UInt, value: UInt): StoreIns = {
+    assert(memType)
     val store = Wire(new StoreIns)
-    
-    // TODO 
-    
+    store.paddr := Cat(paddr(31, 2), 0.U(2.W))
+    // sw rs1, rs2, imm
+    // sb rs1, imm(rs2) 意思是rs1的值写入rs2+imm地址，rs1取低8位
+    val rawValue = MuxLookup(memLen, 0.U)(
+      Seq(
+        MEM_BYTE -> value(7, 0),
+        MEM_HALF -> value(15, 0),
+        MEM_WORD -> value
+      )
+    )
+    store.value := MuxLookup(paddr(1, 0), 0.U)(
+      Seq(
+        "b00".U -> rawValue,
+        "b01".U -> (rawValue << 8.U),
+        "b10".U -> (rawValue << 16.U),
+        "b11".U -> (rawValue << 24.U)
+      )
+    )
+    store.bytes := getBytes(paddr(1, 0))
     store
   }
 
-  def getBytes(): UInt = {
-    // TODO 
-    return 0.U
+  def getBytes(last2bits: UInt): UInt = {
+    val rawBytes = MuxLookup(memLen, 0.U)(
+      Seq(
+        MEM_BYTE -> "b0001".U,
+        MEM_HALF -> "b0011".U,
+        MEM_WORD -> "b1111".U
+      )
+    )
+    return (rawBytes << last2bits)
   }
 
 }

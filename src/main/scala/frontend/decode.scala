@@ -26,10 +26,10 @@ class Decoder extends Module with InstructionConstants {
   io.out.valid := io.valid
 
   val signals = ListLookup(data,
-                        /* 0       , 1       , 2       , 3       , 4      , 5        , 6        , 7       , 8       , 9       , 10           */ 
-                        /* aluType , bruType , selOP1  , selOP2  , writeRd, immType  , exception, iqtType , memType , memLen  , exceptionCode*/
+                        /* 0       , 1       , 2       , 3       , 4      , 5        , 6        , 7       , 8       , 9       , 10            */
+                        /* aluType , bruType , selOP1  , selOP2  , writeRd, immType  , exception, iqtType , memType , memLen  , exceptionCode */
     List(                  ALU_ADD , BRU_NONE, OP1_RS1 , OP2_RS2 , false.B, IMMT_I   , true.B   , IQT_INT , false.B , MEM_WORD, EC_ILLEGAL   ),
-    Array(      
+    Array(        
       luiPattern   -> List(ALU_ADD , BRU_NONE, OP1_ZERO, OP2_IMM , true.B , IMMT_U   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
       auipcPattern -> List(ALU_ADD , BRU_NONE, OP1_PC  , OP2_IMM , true.B , IMMT_U   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),
       jalPattern   -> List(ALU_ADD , BRU_NONE, OP1_PC  , OP2_FOUR, true.B , IMMT_J   , false.B  , IQT_INT , false.B , MEM_WORD, 0.U          ),

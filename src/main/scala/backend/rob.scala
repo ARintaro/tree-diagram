@@ -3,7 +3,7 @@ package core
 import chisel3._
 import chisel3.util._
 
-class RobEntry extends Bundle {
+class RobEntry extends Bundle with InstructionConstants {
   val completed = Bool()
   val vaddr = UInt(BusConfig.ADDR_WIDTH)
   val writeRd = Bool()
@@ -19,10 +19,13 @@ class RobEntry extends Bundle {
 
   val exception = Bool()
   val exceptionCode = UInt(InsConfig.EXCEPTION_WIDTH)
-  
+
+  val storeBufferIdx = UInt(BackendConfig.storeBufferIdxWidth)
+  val storeType = UInt(STORE_TYPE_WIDTH)
+
 }
 
-class NewRobRequest extends Bundle {
+class NewRobRequest extends Bundle with InstructionConstants {
   val valid = Input(Bool())
 
   val vaddr = Input(UInt(BusConfig.ADDR_WIDTH))
@@ -44,21 +47,23 @@ class RobNewIO extends Bundle {
   val restSize = Output(UInt((log2Ceil(BackendConfig.robSize)).W))
 }
 
-class RobReadPcRequest extends Bundle {
+class RobReadPcRequest extends Bundle with InstructionConstants {
   val robIdx = Output(UInt(BackendConfig.robIdxWidth))
   val vaddr = Input(UInt(BusConfig.ADDR_WIDTH))
 }
 
-class RobCompleteRequest extends Bundle {
+class RobCompleteRequest extends Bundle with InstructionConstants{
   val valid = Output(Bool())
   val robIdx = Output(UInt(BackendConfig.robIdxWidth))
   val jump = Output(Bool())
   val jumpTarget = Output(UInt(BusConfig.ADDR_WIDTH))
   val exception = Output(Bool())
   val exceptionCode = Output(UInt(InsConfig.EXCEPTION_WIDTH))
+  val storeBufferIdx = Output(UInt(BackendConfig.storeBufferIdxWidth))
+  val storeType = Output(UInt(STORE_TYPE_WIDTH))
 }
 
-class ReorderBuffer extends Module {
+class ReorderBuffer extends Module with InstructionConstants {
   val newIO = IO(new RobNewIO)
   val completeIO = IO(
     Vec(BackendConfig.pipelineNum, Flipped(new RobCompleteRequest))
@@ -71,6 +76,7 @@ class ReorderBuffer extends Module {
   )
   val io = IO(new Bundle {
     val redirect = Valid(UInt(BusConfig.ADDR_WIDTH))
+    val commitsStoreBuffer = Vec(BackendConfig.maxCommitsNum, new CommitStoreRequest)
   })
 
 
@@ -114,7 +120,7 @@ class ReorderBuffer extends Module {
       entry.jumpTarget := newIO.news(i).predictJumpTarget
       entry.exception := newIO.news(i).exception
       entry.exceptionCode := newIO.news(i).exceptionCode
-
+    
       entries(idx) := entry
     }
     newIO.news(i).idx := idx
@@ -138,6 +144,7 @@ class ReorderBuffer extends Module {
       entry.jumpTargetError := complete.jump && entry.jumpTarget === complete.jumpTarget
       entry.jumpTarget := complete.jumpTarget
       entry.exception := entry.exception | complete.exception
+      entry.storeBufferIdx := complete.storeBufferIdx
       when(complete.exception) {
         entry.exceptionCode := complete.exceptionCode
       }
@@ -168,6 +175,13 @@ class ReorderBuffer extends Module {
       out.valid := valid
       out.pregIdx := entry.rdPidx
       out.lregIdx := entry.rdLidx
+    }
+  }
+
+  io.commitsStoreBuffer.zip(commitValid).zip(commitEntry).foreach {
+    case ((out, valid), entry) => {
+      out.idx := entry.storeBufferIdx
+      out.valid := (valid && entry.storeType === STORE_RAM)
     }
   }
 

@@ -36,6 +36,10 @@ class Backend extends Module {
     Module(new CompressedIssueQueue(new IntInstruction, BackendConfig.intQueueSize, BackendConfig.intQueueScanWidth))
   })
 
+  val memPipe = Module(new MemoryPipeline(BackendConfig.intPipelineNum))
+
+  val storeBuffer = Module(new StoreBuffer(findPortNum = 1)) // TODO : 1个findPortNum够用吗
+
   // Rename Table
   renameTable.ctrlIO.recover := flush
 
@@ -73,8 +77,17 @@ class Backend extends Module {
     pipe.ctrlIO.flush := flush
   }
 
+  // MEM Pipeline
+  memPipe.io.in <> dispatch.io.mem
+  memPipe.io.robComplete <> rob.completeIO(BackendConfig.intPipelineNum) // 这里的robComplete是给memPipe用的,下标是BackendConfig.intPipelineNum
+  memPipe.io.regRead <> registers.io.reads(BackendConfig.intPipelineNum)
+  memPipe.io.regWrite <> registers.io.writes(BackendConfig.intPipelineNum)
+  memPipe.ctrlIO.flush := flush
+
   // ROB
   rob.commitsIO <> renameTable.io.commits
+  rob.io.commitsStoreBuffer <> storeBuffer.io.commits
+  rob.ctrlIO.flushPipeline := flush
   io.robRedirect <> rob.io.redirect
   flush := rob.ctrlIO.flushPipeline
 }
