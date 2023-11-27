@@ -35,12 +35,14 @@ class IntPipeline(index: Int) extends Module
   val f1_pc = RegInit(0.U(32.W))
   val f1_valid = RegInit(false.B)
 
+  val f1_sideway = BackendUtils.SearchSideway(f0_ins.prs1, f0_ins.prs2)
+
   io.regRead(0).id := f0_ins.prs1
   io.regRead(1).id := f0_ins.prs2
   io.pcRead.robIdx := f0_ins.robIdx
 
-  f1_src1 := io.regRead(0).value
-  f1_src2 := io.regRead(1).value
+  f1_src1 := Mux(f1_sideway(0).valid, f1_sideway(0).value, io.regRead(0).value)
+  f1_src2 := Mux(f1_sideway(1).valid, f1_sideway(1).value, io.regRead(1).value)
   f1_ins := f0_ins
   f1_pc := io.pcRead.vaddr
   f1_valid := f0_valid
@@ -55,10 +57,10 @@ class IntPipeline(index: Int) extends Module
   val f2_valid = RegInit(false.B)
   
 
-  val sideway = BackendUtils.SearchSideway(f1_ins.prs1, f1_ins.prs2)
+  val f2_sideway = BackendUtils.SearchSideway(f1_ins.prs1, f1_ins.prs2)
 
-  val reg1 = Mux(sideway(0).valid, sideway(0).value, f1_src1)
-  val reg2 = Mux(sideway(1).valid, sideway(1).value, f1_src2)
+  val reg1 = Mux(f2_sideway(0).valid, f2_sideway(0).value, f1_src1)
+  val reg2 = Mux(f2_sideway(1).valid, f2_sideway(1).value, f1_src2)
 
   val src1 = MuxLookup(f1_ins.selOP1, 0.U)(
     Seq(
@@ -114,10 +116,10 @@ class IntPipeline(index: Int) extends Module
   io.robComplete.exceptionCode := 0.U
   if(DebugConfig.printWriteBack) {
     when (io.regWrite.valid) {
-      DebugUtils.Print(cf"writeback, rd: ${f2_rd}, value: ${f2_aluResult}")
+      DebugUtils.Print(cf"intPipe${index} writeback, rd: ${f2_rd}, value: ${f2_aluResult}")
     }
     when(io.robComplete.valid) {
-      DebugUtils.Print(cf"complete, robidx: ${io.robComplete.robIdx}")
+      DebugUtils.Print(cf"complete${index}, robidx: ${io.robComplete.robIdx}")
     }
   }
 

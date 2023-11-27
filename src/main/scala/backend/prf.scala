@@ -23,9 +23,9 @@ class PhysicalRegisterFile(readPortNum: Int, writePortNum: Int) extends Module {
   val regs = Mem(BackendConfig.physicalRegNum, UInt(32.W))
 
   if(DebugConfig.printPreg) {
-    var regInfo = cf""
+    var regInfo = cf"pregs: "
     for(i <- 0 until 16) {
-      regInfo += cf"pregs:x${i}=${regs(i)}"
+      regInfo += cf"x${i}=${regs(i)(4, 0)} "
     }
     DebugUtils.Print(regInfo)
   }
