@@ -172,12 +172,13 @@ class ReorderBuffer extends Module with InstructionConstants {
   // 这里没有用寄存器暂存输出，时序扛不住的话需要加上
   commitsIO.zip(commitValid).zip(commitEntry).foreach {
     case ((out, valid), entry) => {
-      out.valid := valid
+      out.valid := valid && entry.writeRd
       out.pregIdx := entry.rdPidx
       out.lregIdx := entry.rdLidx
     }
   }
 
+  val allValid = commitValid.reduce(_ && _)
   io.commitsStoreBuffer.zip(commitValid).zip(commitEntry).foreach {
     case ((out, valid), entry) => {
       out.idx := entry.storeBufferIdx
@@ -185,7 +186,6 @@ class ReorderBuffer extends Module with InstructionConstants {
     }
   }
 
-  val allValid = commitValid.reduce(_ || _)
   val firstInvalidIdx = PriorityEncoder(commitValid.map(!_))
 
   val invalidEntry = commitEntry(firstInvalidIdx)

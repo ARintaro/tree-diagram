@@ -75,7 +75,7 @@ class Decoder extends Module with InstructionConstants {
   io.out.bruType := signals(1)
   io.out.selOP1 := signals(2)
   io.out.selOP2 := signals(3)
-  io.out.writeRd := signals(4)
+  io.out.writeRd := signals(4) & (io.in.inst(11, 7) =/= 0.U)
   io.out.immType := signals(5)
   io.out.exception := signals(6) | io.in.exception
   io.out.iqtType := signals(7)

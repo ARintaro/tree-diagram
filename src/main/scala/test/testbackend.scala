@@ -7,6 +7,7 @@ import core._
 class BackendTestTop extends Module {
     val topIO = IO(new Bundle {
         val instructions = Vec(FrontendConfig.decoderNum, Flipped(Decoupled(new RawInstruction)))
+        val robRedirect = Valid(UInt(BusConfig.ADDR_WIDTH))
     })
 
     val backend = Module(new Backend)
@@ -18,4 +19,5 @@ class BackendTestTop extends Module {
     decoder.io.nextDone := backend.io.renameDone
     decoder.ctrlIO.flush := false.B
     topIO.instructions <> decoder.io.in
+    topIO.robRedirect := backend.io.robRedirect
 }
