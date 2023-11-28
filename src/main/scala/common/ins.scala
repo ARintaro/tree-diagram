@@ -137,6 +137,19 @@ trait InstructionConstants {
   def STORE_RAM = 1.U(STORE_TYPE_WIDTH) // store指令，写入RAM
   def STORE_MMIO = 2.U(STORE_TYPE_WIDTH) // store指令，写入MMIO
   def LOAD_MMIO = 3.U(STORE_TYPE_WIDTH) // load指令，读取MMIO
+
+  // CSR指令类型
+  val CSR_WIDTH = 4.W
+  def CSRRW = 0.U(CSR_WIDTH)
+  def CSRRS = 1.U(CSR_WIDTH)
+  def CSRRC = 2.U(CSR_WIDTH)
+  def CSRRWI = 3.U(CSR_WIDTH)
+  def CSRRSI = 4.U(CSR_WIDTH)
+  def CSRRCI = 5.U(CSR_WIDTH)
+  def MRET = 6.U(CSR_WIDTH)
+  def SRET = 7.U(CSR_WIDTH)
+  def ECALL = 8.U(CSR_WIDTH)
+  def EBREAK = 9.U(CSR_WIDTH)
 }
 
 // 解码单元解码出的指令
