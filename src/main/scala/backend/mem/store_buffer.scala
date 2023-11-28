@@ -13,11 +13,11 @@ class StoreIns extends Bundle with InstructionConstants {
   val bytes = UInt(4.W)
 }
 
-class StoreBus extends Bundle {
-  val stb = Input(Bool())
-  val store = Input(new StoreIns)
-  val ack = Output(Bool())
-}
+// class StoreBus extends Bundle {
+//   val stb = Input(Bool())
+//   val store = Input(new StoreIns)
+//   val ack = Output(Bool())
+// }
 
 class NewStoreRequest extends Bundle {
   val valid = Output(Bool())
@@ -29,7 +29,7 @@ class NewStoreRequest extends Bundle {
 
 class CommitStoreRequest extends Bundle {
   val valid = Output(Bool())
-  val idx = Input(UInt(BackendConfig.storeBufferIdxWidth))
+  val idx = Output(UInt(BackendConfig.storeBufferIdxWidth))
 }
 
 class StoreFindRequest extends Bundle {
@@ -45,14 +45,19 @@ class StoreBuffer(findPortNum: Int) extends Module {
     val news = Flipped(new NewStoreRequest)
     val commits =
       Vec(BackendConfig.maxCommitsNum, Flipped(new CommitStoreRequest))
-    val finds = Vec(findPortNum, new StoreFindRequest)
+    val finds = Vec(findPortNum, Flipped(new StoreFindRequest))
   })
 
-  val busIO = IO(Flipped(new StoreBus))
+  val busIO = IO(BusMasterInterface())
 
   val ctrlIO = IO(new Bundle {
     val flush = Input(Bool())
   })
+
+  //initialize
+  io.news.succ := false.B
+  io.news.idx := DontCare
+  busIO.master_turn_off()
 
   val commited = RegInit(0.U(BackendConfig.storeBufferSize.W))
   val valid = RegInit(0.U(BackendConfig.storeBufferSize.W))
@@ -123,11 +128,15 @@ class StoreBuffer(findPortNum: Int) extends Module {
 
   // 默认关闭
   busIO.stb := false.B
-  busIO.store := DontCare
+  // busIO.store := DontCare
 
   when(busy) {
     busIO.stb := true.B
-    busIO.store := writeStore
+    // busIO.store := writeStore
+    busIO.dataMode := true.B
+    busIO.dataWrite := writeStore.value
+    busIO.dataBytesSelect := writeStore.bytes
+    busIO.addr := writeStore.paddr
     when(busIO.ack) {
       busy := false.B
     }
@@ -135,8 +144,11 @@ class StoreBuffer(findPortNum: Int) extends Module {
     when(commited(begin)) {
       busy := true.B
       busIO.stb := true.B
-      busIO.store := stores(begin)
       writeStore := stores(begin)
+      busIO.dataMode := true.B
+      busIO.dataWrite := writeStore.value
+      busIO.dataBytesSelect := writeStore.bytes
+      busIO.addr := writeStore.paddr
       free := UIntToOH(begin)
     }
 

@@ -120,6 +120,8 @@ class ReorderBuffer extends Module with InstructionConstants {
       entry.jumpTarget := newIO.news(i).predictJumpTarget
       entry.exception := newIO.news(i).exception
       entry.exceptionCode := newIO.news(i).exceptionCode
+      entry.storeBufferIdx := DontCare
+      entry.storeType := DontCare
     
       entries(idx) := entry
     }

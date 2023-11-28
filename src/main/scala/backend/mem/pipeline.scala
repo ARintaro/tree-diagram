@@ -20,6 +20,12 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 	val flush = Input(Bool())
   })
 
+  // initialize
+  io.newStore.valid := false.B
+  io.newStore.store := DontCare
+  io.findStore.paddr := DontCare
+  io.bus.master_turn_off()
+
   io.regRead(0).id := io.in.bits.prs1 // 对于读&写寄存器指令，从rs1中读取基地址
   io.regRead(1).id := io.in.bits.prd_or_prs2 // 对于写寄存器指令从rs2中读取值
 
@@ -34,12 +40,23 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   val f0_done = WireInit(false.B)
   val f0_src1 = Reg(UInt(32.W)) // 从rs1中读取基地址
   val f0_src2 = Reg(UInt(32.W)) // 从rs2中读取值(仅对store指令有效)
+
+  val f1_rd = RegInit(0.U(BackendConfig.pregIdxWidth))
+  val f1_storeType = RegInit(0.U(STORE_TYPE_WIDTH))
+  val f1_robIdx = RegInit(0.U(BackendConfig.robIdxWidth))
+  val f1_wbVal = RegInit(0.U(32.W))
+  val f1_wb = RegInit(false.B)
+  val f1_valid = RegInit(false.B)
+  // Buffer 中的Idx，有可能是Store Buffer，也有可能是MMIO Buffer
+  val f1_bufferIdx = RegInit(0.U(BackendConfig.storeBufferIdxWidth))
   
+  val sideway0 = BackendUtils.SearchSideway(io.in.bits.prs1, io.in.bits.prd_or_prs2)
+
   when (f0_done) {
 	io.in.ready := true.B
 	f0_ins := io.in.bits
-	f0_src1 := io.regRead(0).value
-	f0_src2 := io.regRead(1).value
+	f0_src1 := Mux(sideway0(0).valid, sideway0(0).value, io.regRead(0).value)
+	f0_src2 := Mux(sideway0(1).valid, sideway0(1).value, io.regRead(1).value)
 	f0_valid := io.in.valid
 	// TODO : 在这里进行TLB与dcache访问
 
@@ -49,11 +66,10 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 
   val wakeupValid = WireInit(false.B)
   // F1
+  val sideway1 = BackendUtils.SearchSideway(f0_ins.prs1, f0_ins.prd_or_prs2)
   when (f0_valid) {
-	val sideway = BackendUtils.SearchSideway(io.in.bits.prs1, io.in.bits.prd_or_prs2)
-	val paddr = Mux(sideway(0).valid, sideway(0).value, f0_src1) + f0_ins.imm
-	val data = Mux(sideway(1).valid, sideway(1).value, f0_src2)
-	f1_rd := f0_ins.prd_or_prs2
+	val paddr = Mux(sideway1(0).valid, sideway1(0).value, f0_src1) + f0_ins.imm
+	val data = Mux(sideway1(1).valid, sideway1(1).value, f0_src2)
 	val storeType = WireInit(0.U(STORE_TYPE_WIDTH))
 	when (f0_ins.memType) {
 	  // Store
@@ -62,25 +78,19 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 	  storeType := STORE_RAM // 这里暂时先不考虑MMIO
 	  io.newStore.valid := true.B
 	  // TODO : 补完getStoreIns()
-	  // 旁路
-	  // sw rs2, rs1, imm；rs2 和 rs1可能来自旁路
-	  
 	  io.newStore.store := f0_ins.getStoreIns(paddr, data)
-
-	 
-	  when (io.newStore.succ) {
-		f0_done := true.B
-		f1_robIdx := f0_ins.robIdx
-		f1_bufferIdx := io.newStore.idx
-		f1_wb := false.B
-		f1_valid := true.B
-		f1_storeType := storeType
-	  } .otherwise {
-		f0_done := false.B
-		f1_valid := false.B
-	  }
-
-	} .otherwise {
+		when (io.newStore.succ) {
+			f0_done := true.B
+			f1_robIdx := f0_ins.robIdx
+			f1_bufferIdx := io.newStore.idx
+			f1_wb := false.B
+			f1_valid := true.B
+			f1_storeType := storeType
+		} .otherwise {
+			f0_done := false.B
+			f1_valid := false.B
+		}
+	}.otherwise {
 	
 	  // Load
 	  val alignedPaddr = Cat(paddr(31, 2), 0.U(2.W))
@@ -97,7 +107,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 			f1_robIdx := f0_ins.robIdx
 			f1_wb := true.B
 			f1_wbVal := io.findStore.value
-
+			f1_rd := f0_ins.prd_or_prs2
 			// TODO : 找到数据后，广播唤醒
 			wakeupValid := true.B
 		} .otherwise {
@@ -120,6 +130,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 			f1_robIdx := f0_ins.robIdx
 			f1_wb := true.B
 			f1_wbVal := io.bus.dataRead
+			f1_rd := f0_ins.prd_or_prs2
 			wakeupValid := true.B
 		} .otherwise {
 			f0_done := false.B
@@ -132,19 +143,11 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 	f1_valid := false.B
   }
   BackendUtils.BroadcastWakeup(index, f0_ins.prd_or_prs2, wakeupValid) // 广播唤醒
-  
-  val f1_rd = RegInit(0.U(BackendConfig.pregIdxWidth))
-  val f1_storeType = RegInit(0.U(STORE_TYPE_WIDTH))
-  val f1_robIdx = RegInit(0.U(BackendConfig.robIdxWidth))
-  val f1_wbVal = RegInit(0.U(32.W))
-  val f1_wb = RegInit(false.B)
-  val f1_valid = RegInit(false.B)
-  // Buffer 中的Idx，有可能是Store Buffer，也有可能是MMIO Buffer
-  val f1_bufferIdx = RegInit(0.U(BackendConfig.storeBufferIdxWidth))
 
 
   // F2
-  val writeValid = f1_valid && f1_wb
+
+  val writeValid = WireInit(f1_valid && f1_wb)
 
   // TODO : 是否为MMIO类型，如果为MMIO类型，ROB提交时应该在MMIO BUFERR中提交
 
@@ -173,7 +176,6 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 	io.regWrite.valid := false.B
 	io.robComplete.valid := false.B
 	io.newStore.valid := false.B
-	io.findStore.valid := false.B
 	assert(!io.in.valid)
   }	
 }

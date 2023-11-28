@@ -1,6 +1,7 @@
 package core
 
 import chisel3._
+import chisel3.util._
 
 class EmptyBundle extends Bundle
 
@@ -36,8 +37,35 @@ object BusSlaveInterface {
 }
 
 object BusMasterInterface {
-  def apply() = Flipped(new BusSlaveInterface)
+  def apply() = Flipped(new BusSlaveInterface)  
+}
 
-  
-  
+class MMIOAddrRangeInterface extends Bundle {
+  val start = UInt(BusConfig.ADDR_WIDTH)
+  val mask = UInt(BusConfig.ADDR_WIDTH)
+}
+
+class BusMux (slaveNum: Int) extends Module {
+  val io = IO(new Bundle {
+    val master = Flipped(BusMasterInterface())
+    val slaves = Vec(slaveNum, Flipped(BusSlaveInterface()))
+    val allocate = Input(Vec(slaveNum, new MMIOAddrRangeInterface)) // 地址分配
+  })
+
+  val addr = io.master.addr
+  val slavesSelect = io.allocate.map(x => (addr & x.mask) === x.start)
+                                .scan(false.B)((a, b) => b & !a).tail
+  val masterCycle = io.master.stb
+  val selectError = masterCycle & (!slavesSelect.reduce(_ | _))
+  // master
+  io.master.dataRead := Mux(selectError, 0.U, Mux1H(slavesSelect, io.slaves.map(_.dataRead)))
+  io.master.ack := Mux(selectError, false.B, Mux1H(slavesSelect, io.slaves.map(_.ack)))
+  // slave
+  io.slaves.zip(slavesSelect).foreach{case (slave, select) => {
+    slave.stb := masterCycle & select
+    slave.addr := addr
+    slave.dataBytesSelect := io.master.dataBytesSelect
+    slave.dataMode := io.master.dataMode & select
+    slave.dataWrite := io.master.dataWrite
+  }}
 }
