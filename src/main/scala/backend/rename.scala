@@ -70,6 +70,29 @@ class RenameTable extends Module {
 
   val recovering = RegInit(false.B)
 
+  if (DebugConfig.printBusy) {
+    DebugUtils.Print(cf"Busy ${busy.asTypeOf(Vec(BackendConfig.physicalRegNum, Bool()))}")
+  }
+
+  if (DebugConfig.printRenameTable) {
+    DebugUtils.Print(cf"Sfree ${sfree.asTypeOf(Vec(BackendConfig.physicalRegNum, Bool()))}")
+    DebugUtils.Print(cf"Afree ${afree.asTypeOf(Vec(BackendConfig.physicalRegNum, Bool()))}")
+
+    for (i <- 0 until 32) {
+      val entry = srt(i)
+      when (entry.valid) {
+        DebugUtils.Print(cf"Spec Name Entry ${i} -> ${entry.pregIdx}")
+      }
+    }
+
+    for (i <- 0 until 32) {
+      val entry = art(i)
+      when (entry.valid) {
+        DebugUtils.Print(cf"Arch Name Entry ${i} -> ${entry.pregIdx}")
+      }
+    }
+  }
+
   when(recovering) {
     // 从art恢复出freeList与srt
     srt := art
@@ -182,7 +205,7 @@ class RenameTable extends Module {
         // 把之前的物理寄存器重新加入SFree
         curSFree = curSFree | lastPregOH
         // 把之前的物理寄存器加入AFree，把现在的物理寄存器从AFree里删掉
-        curAFree = curAFree | lastPregOH & ~curPregOH
+        curAFree = (curAFree | lastPregOH) & ~curPregOH
 
         // 写入新的映射关系
         val newRT = Wire(Vec(32, new RenameTableEntry))
@@ -198,7 +221,6 @@ class RenameTable extends Module {
               DebugUtils.Print(cf"Rename commit: lregIdx: ${req.lregIdx} -> pregIdx: ${req.pregIdx}")
             }
           }
-
         }
 
         curRT = newRT
@@ -290,6 +312,16 @@ class RenameUnit extends Module
     robIO.news(i).predictJump := io.in(i).predictJump
     robIO.news(i).predictJumpTarget := io.in(i).predictTarget
 
+    if (DebugConfig.printRobNew) {
+      when (robIO.news(i).valid) {
+        var base = cf"Rob New Idx ${robIO.news(i).idx} Inst 0x${io.in(i).inst}%x vaddr 0x${io.in(i).vaddr}%x"
+        when (robIO.news(i).writeRd) {
+          base += cf"Rd ${renameTableIO.news(i).pregIdx}"
+        }
+        DebugUtils.Print(base)
+      }
+    }
+
   }
 
   when (succ) {
@@ -312,6 +344,10 @@ class RenameUnit extends Module
       ins.prs1 := renameTableIO.finds(i)(0).preg
       ins.prs2 := renameTableIO.finds(i)(1).preg
       ins.prd := renameTableIO.news(i).pregIdx
+
+      if (DebugConfig.printPipeIns) {
+        DebugUtils.Print(cf"PipeIns RobIdx : ${ins.robIdx} Sel1:${ins.selOP1} prs1:${ins.prs1} Sel2:${ins.selOP2} prs2:${ins.prs2}")
+      }
       
       outBuffer(i) := ins
     }

@@ -50,6 +50,7 @@ class CompressedIssueQueue[T <: Data with IssueInstruction](
   when(ctrlIO.flush) {
     valid := 0.U
     io.enq.ready := false.B
+    io.issue.valid := false.B
   }.otherwise {
 
     when(issueSucc) {

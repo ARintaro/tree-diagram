@@ -25,7 +25,7 @@ class PhysicalRegisterFile(readPortNum: Int, writePortNum: Int) extends Module {
   if(DebugConfig.printPreg) {
     var regInfo = cf"pregs: "
     for(i <- 0 until 16) {
-      regInfo += cf"x${i}=${regs(i)(4, 0)} "
+      regInfo += cf"x${i}=${regs(i)} "
     }
     DebugUtils.Print(regInfo)
   }

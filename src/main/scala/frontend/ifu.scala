@@ -46,13 +46,14 @@ class InstructionFetchUnit extends Module {
   if(DebugConfig.printFetch) {
     for(i <- 0 until CacheConfig.icache.cacheLineSize) {
       when(fetchQueue.io.enq(i).ready && fetchQueue.io.enq(i).valid) {
-        DebugUtils.Print(cf"command ${fetchQueue.io.enq(i).bits} fetched")
+        val bits = fetchQueue.io.enq(i).bits
+        DebugUtils.Print(cf"fetched inst 0x${bits.inst}%x vaddr 0x${bits.vaddr}%x")
       }
     }
   }
 
   //暂时不处理flush
-  fetchQueue.ctrlIO.flush := false.B
+  fetchQueue.ctrlIO.flush := ctrlIO.flush
   tlb.ctrlIO.clear := ctrlIO.clearTLB
   icache.ctrlIO.clear := ctrlIO.clearIcache
 

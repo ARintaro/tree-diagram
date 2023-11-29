@@ -19,7 +19,7 @@ class RobEntry extends Bundle {
 
   val exception = Bool()
   val exceptionCode = UInt(InsConfig.EXCEPTION_WIDTH)
-  
+
 }
 
 class NewRobRequest extends Bundle {
@@ -72,7 +72,6 @@ class ReorderBuffer extends Module {
   val io = IO(new Bundle {
     val redirect = Valid(UInt(BusConfig.ADDR_WIDTH))
   })
-
 
   val ctrlIO = IO(new Bundle {
     val flushPipeline = Output(Bool())
@@ -147,23 +146,63 @@ class ReorderBuffer extends Module {
   // 处理Commit
   val inQueueMask = MaskUtil.GetValidMask(head, tail)
 
-  val commitBasicValids = Wire(Vec(BackendConfig.maxCommitsNum, Bool()))
+  val commitValidsOne = Wire(Vec(BackendConfig.maxCommitsNum, Bool()))
   val commitEntry = Wire(Vec(BackendConfig.maxCommitsNum, new RobEntry))
 
   for (i <- 0 until BackendConfig.maxCommitsNum) {
     val idx = head + i.U
-    commitBasicValids(i) := entries(idx).completed && inQueueMask(idx)
+    commitValidsOne(i) := entries(idx).completed && inQueueMask(idx)
     commitEntry(i) := entries(idx)
   }
 
-  val commitJumpValid = commitEntry.map(x => !x.jumpTargetError && x.realJump === x.predictJump)
+  val commitJumpValid =
+    VecInit(commitEntry.map(x => !x.jumpTargetError && x.realJump === x.predictJump))
 
-  val commitValid = commitBasicValids.zip(commitJumpValid).zip(commitEntry).map {
-    case ((x, y), z) => x && y && !z.exception
-  }.scan(true.B)(_ && _).tail
+  val commitValidsTwo = commitValidsOne
+    .zip(commitJumpValid)
+    .zip(commitEntry)
+    .map { case ((x, y), z) =>
+      x && y && !z.exception
+    }
+    .scan(true.B)(_ && _)
+    .tail
+
+  val allValidTwo = commitValidsTwo.reduce(_ && _)
+  val firstInvalidIdx = PriorityEncoder(commitValidsTwo.map(!_))
+
+  val invalidEntry = commitEntry(firstInvalidIdx)
+
+  val commitValidsFinal = WireInit(VecInit(commitValidsTwo))
+
+  when(!allValidTwo && commitValidsOne(firstInvalidIdx)) {
+    io.redirect.valid := true.B
+    ctrlIO.flushPipeline := true.B
+
+    when(invalidEntry.exception) {
+      // TODO : 异常跳转地址, 根据异常类型设定firstInvalid是否提交
+      assert(false.B)
+    }.otherwise {
+      // 分支预测失败
+      commitValidsFinal(firstInvalidIdx) := true.B
+      when(invalidEntry.jumpTargetError) {
+        // 跳转地址错误
+        DebugUtils.Print(cf"RobIdx JumpTarget Error, New Target 0x${invalidEntry.jumpTarget}%x")
+        io.redirect.bits := invalidEntry.jumpTarget
+      }.otherwise {
+        // 是否跳转错误
+        DebugUtils.Print(cf"RobIdx Jump Error, New Jump ${invalidEntry.realJump} 0x${io.redirect.bits}%x")
+        assert(invalidEntry.realJump =/= invalidEntry.predictJump)
+        io.redirect.bits := Mux(
+          invalidEntry.realJump,
+          invalidEntry.jumpTarget,
+          invalidEntry.vaddr + 4.U
+        )
+      }
+    }
+  }
 
   // 这里没有用寄存器暂存输出，时序扛不住的话需要加上
-  commitsIO.zip(commitValid).zip(commitEntry).foreach {
+  commitsIO.zip(commitValidsFinal).zip(commitEntry).foreach {
     case ((out, valid), entry) => {
       out.valid := valid && entry.writeRd
       out.pregIdx := entry.rdPidx
@@ -171,40 +210,28 @@ class ReorderBuffer extends Module {
     }
   }
 
-  val allValid = commitValid.reduce(_ && _)
-  val firstInvalidIdx = PriorityEncoder(commitValid.map(!_))
-
-  val invalidEntry = commitEntry(firstInvalidIdx)
-  when (!allValid && commitBasicValids(firstInvalidIdx)) {
-    io.redirect.valid := true.B
-    ctrlIO.flushPipeline := true.B
-
-    when (invalidEntry.exception) {
-      // TODO : 异常跳转地址
-      assert(false.B)
-    }.otherwise {
-      // 分支预测失败
-      when (invalidEntry.jumpTargetError) {
-        // 跳转地址错误
-        io.redirect.bits := invalidEntry.jumpTarget
-      } .otherwise {
-        // 是否跳转错误
-        assert(invalidEntry.realJump =/= invalidEntry.predictJump)
-        io.redirect.bits := Mux(invalidEntry.realJump, invalidEntry.jumpTarget, invalidEntry.vaddr + 4.U)
-      }
-    }
-  }
-
-  head := head + PopCount(commitValid)
-
+  head := head + PopCount(commitValidsFinal)
 
   val flush = ctrlIO.flushPipeline
-  when (flush) {
+  when(flush) {
     head := 0.U
     tail := 0.U
   }
 
-
+  if (DebugConfig.printRob) {
+    when(head =/= tail) {
+      DebugUtils.Print("=== ROB ===")
+      DebugUtils.Print(cf"IDX | OVER | Jv | commit | vaddr")
+      for (i <- 0 until BackendConfig.robSize) {
+        val idx = head + i.U
+        when(inQueueMask(idx)) {
+          val entry = entries(idx)
+          DebugUtils.Print(cf"${idx}  ${entry.completed} ${commitJumpValid(idx)} ${commitValidsFinal(idx)} 0x${entry.vaddr}%x")
+        }
+      }
+      DebugUtils.Print("=== END ===")
+    }
+  }
 
   assert(newIO.newsCount <= newIO.restSize)
   assert(PopCount(newIO.news.map(_.valid)) === newIO.newsCount)

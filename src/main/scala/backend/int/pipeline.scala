@@ -119,7 +119,7 @@ class IntPipeline(index: Int) extends Module
       DebugUtils.Print(cf"intPipe${index} writeback, rd: ${f2_rd}, value: ${f2_aluResult}")
     }
     when(io.robComplete.valid) {
-      DebugUtils.Print(cf"complete${index}, robidx: ${io.robComplete.robIdx}")
+      DebugUtils.Print(cf"complete${index}, robidx: ${io.robComplete.robIdx}, target: 0x${f2_jumpTarget}%x")
     }
   }
 

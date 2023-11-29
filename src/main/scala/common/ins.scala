@@ -240,4 +240,5 @@ class PipelineInstruction extends Bundle with InstructionConstants {
     inst.memLen := memLen
     inst
   }
+
 }
