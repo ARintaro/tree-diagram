@@ -8,8 +8,9 @@ object GenConfig {
 }
 
 object DebugConfig {
-  var debug = true
+  val debug = false
 
+  var printRenameTable = true
   var printRenameUnitIn = true
   
   var printRenameAlloc = true
@@ -22,6 +23,14 @@ object DebugConfig {
   var printPreg = true
   var printLreg = true
   var printFetch = true
+  var printRedirect = true
+  var printFlush = true
+
+  val printRob = true
+  val printRobNew = true
+  val printPipeIns = true
+
+  var printBusy = true
 }
 
 object SramConfig {

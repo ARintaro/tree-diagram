@@ -25,7 +25,7 @@ class Backend extends Module {
   val dispatch = Module(new DispatchUnit)
   val registers = Module(
     new PhysicalRegisterFile(
-      BackendConfig.intPipelineNum ,
+      BackendConfig.intPipelineNum,
       BackendConfig.intPipelineNum
     )
   )
@@ -33,7 +33,13 @@ class Backend extends Module {
     (0 until BackendConfig.intPipelineNum).map(x => Module(new IntPipeline(x)))
 
   val intQueues = (0 until BackendConfig.intPipelineNum).map(x => {
-    Module(new CompressedIssueQueue(new IntInstruction, BackendConfig.intQueueSize, BackendConfig.intQueueScanWidth))
+    Module(
+      new CompressedIssueQueue(
+        new IntInstruction,
+        BackendConfig.intQueueSize,
+        BackendConfig.intQueueScanWidth
+      )
+    )
   })
 
   val memPipe = Module(new MemoryPipeline(BackendConfig.intPipelineNum))
@@ -43,7 +49,9 @@ class Backend extends Module {
   if(DebugConfig.printIssue) {
     for(i <- 0 until BackendConfig.intPipelineNum) {
       when(intQueues(i).io.issue.valid && intQueues(i).io.issue.ready) {
-        DebugUtils.Print(cf"intIntruction issued, robidx${intQueues(i).io.issue.bits.robIdx}")
+        DebugUtils.Print(
+          cf"intIntruction issued, robidx${intQueues(i).io.issue.bits.robIdx}"
+        )
       }
     }
   }
@@ -72,7 +80,6 @@ class Backend extends Module {
   // Int Queues
   intQueues.foreach(_.ctrlIO.flush := flush)
 
-
   // Int Pipeline
   for (i <- 0 until BackendConfig.intPipelineNum) {
     val pipe = intPipes(i)
@@ -97,4 +104,17 @@ class Backend extends Module {
   rob.ctrlIO.flushPipeline := flush
   io.robRedirect <> rob.io.redirect
   flush := rob.ctrlIO.flushPipeline
+
+  if (DebugConfig.printFlush) {
+    when(rob.ctrlIO.flushPipeline) {
+      DebugUtils.Print("Flush !!")
+    }
+  }
+
+  if (DebugConfig.printRedirect) {
+    when (io.robRedirect.valid) {
+      DebugUtils.Print(cf"Backend Redirect : 0x${io.robRedirect.bits}%x")
+    }
+  }
+
 }
