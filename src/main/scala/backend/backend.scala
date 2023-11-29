@@ -9,6 +9,8 @@ class Backend extends Module {
 
     val renameDone = Output(Bool())
     val robRedirect = Valid(UInt(BusConfig.ADDR_WIDTH))
+
+    val memBus = Vec(2, BusMasterInterface())
   })
 
   val ctrlIO = IO(new Bundle {
@@ -25,8 +27,8 @@ class Backend extends Module {
   val dispatch = Module(new DispatchUnit)
   val registers = Module(
     new PhysicalRegisterFile(
-      BackendConfig.intPipelineNum,
-      BackendConfig.intPipelineNum
+      BackendConfig.pipelineNum,
+      BackendConfig.pipelineNum
     )
   )
   val intPipes =
@@ -92,18 +94,21 @@ class Backend extends Module {
   }
 
   // MEM Pipeline
-  memPipe.io.in <> dispatch.io.mem
+  memPipe.io.in <> dispatch.io.mem(0)
   memPipe.io.robComplete <> rob.completeIO(BackendConfig.intPipelineNum) // 这里的robComplete是给memPipe用的,下标是BackendConfig.intPipelineNum
   memPipe.io.regRead <> registers.io.reads(BackendConfig.intPipelineNum)
   memPipe.io.regWrite <> registers.io.writes(BackendConfig.intPipelineNum)
   memPipe.ctrlIO.flush := flush
+  memPipe.io.findStore <> storeBuffer.io.finds(0)
+  memPipe.io.newStore <> storeBuffer.io.news
+  memPipe.io.bus <> io.memBus(0)
 
   // ROB
   rob.commitsIO <> renameTable.io.commits
   rob.io.commitsStoreBuffer <> storeBuffer.io.commits
-  rob.ctrlIO.flushPipeline := flush
   io.robRedirect <> rob.io.redirect
   flush := rob.ctrlIO.flushPipeline
+
 
   if (DebugConfig.printFlush) {
     when(rob.ctrlIO.flushPipeline) {
@@ -116,5 +121,10 @@ class Backend extends Module {
       DebugUtils.Print(cf"Backend Redirect : 0x${io.robRedirect.bits}%x")
     }
   }
+
+
+  // store buffer
+  storeBuffer.busIO <> io.memBus(1)
+  storeBuffer.ctrlIO.flush := flush
 
 }

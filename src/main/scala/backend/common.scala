@@ -76,7 +76,7 @@ object BackendUtils {
     val preg = Wire(Vec(BackendConfig.sidewayNum, UInt(BackendConfig.pregIdxWidth)))
     val value = Wire(Vec(BackendConfig.sidewayNum, UInt(32.W)))
 
-    val ret = Wire(Vec(2, new SidewayResult))
+    val ret = Wire(Vec(2, new SidewayResult)) // valid, value
 
     for (i <- 0 until BackendConfig.sidewayNum) {
       BoringUtils.addSink(valid(i), GetSidewayValidName(i))
@@ -95,8 +95,6 @@ object BackendUtils {
       ret(i).valid := eq.reduce(_ || _)
       ret(i).value := Mux1H(eq, value)
     }
-    
-
     ret
   }
 

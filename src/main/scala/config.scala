@@ -8,7 +8,7 @@ object GenConfig {
 }
 
 object DebugConfig {
-  val debug = false
+  var debug = false
 
   var printRenameTable = true
   var printRenameUnitIn = true
@@ -43,6 +43,13 @@ object BusConfig {
   val DATA_WIDTH = 32.W
   val DATA_BYTES_NUM = (DATA_WIDTH.get / 8).W
   val ADDR_WIDTH = 32.W
+
+  val BASE_RAM_START = 0x80000000L
+  val BASE_RAM_MASK = 0xFFC00000L
+  val EXT_RAM_START = 0x80400000L
+  val EXT_RAM_MASK = 0xFFC00000L
+  val UART_START = 0x10000000L
+  val UART_MASK = 0xFFFF0000L
 }
 
 object InsConfig {
@@ -123,7 +130,7 @@ object BackendConfig {
   val pipelineNum = intPipelineNum + memPipelineNum
   val wakeUpNum = pipelineNum
   val sidewayNum = pipelineNum
-  // 唤醒和旁路网络中，intPipe占用(0, intPipelineNum - 1)
+  // 唤醒和旁路网络中，intPipe占用[0, intPipelineNum - 1]
   // memPipe占用intPipelineNum
 
   val storeBufferSize = 16

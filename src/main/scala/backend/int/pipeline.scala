@@ -100,7 +100,7 @@ class IntPipeline(index: Int) extends Module
 
   // F3 写回阶段
   
-  val writeValid = f2_valid && f2_writeRd
+  val writeValid = WireInit(f2_valid && f2_writeRd)
   BackendUtils.BroadcastSideway(index, f2_rd, f2_aluResult, writeValid)
 
   io.regWrite.valid := writeValid
