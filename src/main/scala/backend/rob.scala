@@ -218,6 +218,14 @@ class ReorderBuffer extends Module with InstructionConstants {
     }
   }
 
+  val allValid = commitValidsFinal.reduce(_ && _)
+  io.commitsStoreBuffer.zip(commitValidsFinal).zip(commitEntry).foreach {
+    case ((out, valid), entry) => {
+      out.idx := entry.storeBufferIdx
+      out.valid := (valid && entry.storeType === STORE_RAM)
+    }
+  }
+
   head := head + PopCount(commitValidsFinal)
 
   val flush = ctrlIO.flushPipeline
