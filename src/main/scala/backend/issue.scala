@@ -128,9 +128,12 @@ class IntInstruction
   val aluType = UInt(ALU_WIDTH)
 
   override def checkReady(busy: UInt): Bool = {
-    return (selOP1 =/= OP1_RS1 || !busy(prs1)) && (selOP2 =/= OP2_RS2 || !busy(
-      prs2
-    ))
+    return MuxLookup(bruType, !busy(prs1) && !busy(prs2)) (
+      Seq(
+        BRU_NONE -> ((selOP1 =/= OP1_RS1 || !busy(prs1)) && (selOP2 =/= OP2_RS2 || !busy(prs2))),
+        BRU_JALR -> !busy(prs1),
+      )
+    ) 
   }
 }
 
