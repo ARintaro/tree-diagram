@@ -97,5 +97,5 @@ class VivadoTop extends Module {
     Ifu.io.fetch <> decoder.io.in
     decoder.io.out <> backend.io.in
     decoder.io.nextDone := backend.io.renameDone
-    decoder.ctrlIO.flush := backend.ctrlIO.flushPipeline
+    decoder.ctrlIO.flush := RegNext(backend.ctrlIO.flushPipeline)
 }

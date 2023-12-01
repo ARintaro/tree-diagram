@@ -17,9 +17,7 @@ class Backend extends Module {
     val flushPipeline = Output(Bool())
   })
 
-  val flush = Wire(Bool())
-
-  ctrlIO.flushPipeline := flush
+  val flushDelay = Wire(Bool())
 
   val renameTable = Module(new RenameTable)
   val renameUnit = Module(new RenameUnit)
@@ -66,12 +64,12 @@ class Backend extends Module {
     }
   }
   // Rename Table
-  renameTable.ctrlIO.recover := flush
+  renameTable.ctrlIO.recover := flushDelay
 
   // Rename Unit
   renameUnit.renameTableIO <> renameTable.io.renames
   renameUnit.robIO <> rob.newIO
-  renameUnit.ctrlIO.flush := flush
+  renameUnit.ctrlIO.flush := flushDelay
   renameUnit.io.in := io.in
   renameUnit.io.nextDone := dispatch.io.done
   io.renameDone := renameUnit.io.done
@@ -89,7 +87,7 @@ class Backend extends Module {
   dispatch.io.mem <> memQueue.io.enq
 
   // Int Queues
-  intQueues.foreach(_.ctrlIO.flush := flush)
+  intQueues.foreach(_.ctrlIO.flush := flushDelay)
 
   // Int Pipeline
   for (i <- 0 until BackendConfig.intPipelineNum) {
@@ -99,18 +97,18 @@ class Backend extends Module {
     pipe.io.pcRead <> rob.readPcIO(i)
     pipe.io.regRead <> registers.io.reads(i)
     pipe.io.regWrite <> registers.io.writes(i)
-    pipe.ctrlIO.flush := flush
+    pipe.ctrlIO.flush := flushDelay
   }
 
   // Mem Queues
-  memQueue.ctrlIO.flush := flush
+  memQueue.ctrlIO.flush := flushDelay
 
   // MEM Pipeline
   memPipe.io.in <> memQueue.io.issue
   memPipe.io.robComplete <> rob.completeIO(BackendConfig.intPipelineNum) // 这里的robComplete是给memPipe用的,下标是BackendConfig.intPipelineNum
   memPipe.io.regRead <> registers.io.reads(BackendConfig.intPipelineNum)
   memPipe.io.regWrite <> registers.io.writes(BackendConfig.intPipelineNum)
-  memPipe.ctrlIO.flush := flush
+  memPipe.ctrlIO.flush := flushDelay
   memPipe.io.findStore <> storeBuffer.io.finds(0)
   memPipe.io.newStore <> storeBuffer.io.news
   memPipe.io.bus <> io.memBus(0)
@@ -119,7 +117,10 @@ class Backend extends Module {
   rob.commitsIO <> renameTable.io.commits
   rob.io.commitsStoreBuffer <> storeBuffer.io.commits
   io.robRedirect <> rob.io.redirect
-  flush := rob.ctrlIO.flushPipeline
+
+
+  flushDelay := RegNext(rob.ctrlIO.flushPipeline)
+  ctrlIO.flushPipeline := rob.ctrlIO.flushPipeline
 
 
   if (DebugConfig.printFlush) {
@@ -137,6 +138,6 @@ class Backend extends Module {
 
   // store buffer
   storeBuffer.busIO <> io.memBus(1)
-  storeBuffer.ctrlIO.flush := flush
+  storeBuffer.ctrlIO.flush := flushDelay
 
 }

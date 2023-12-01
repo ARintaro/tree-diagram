@@ -8,7 +8,7 @@ object GenConfig {
 }
 
 object DebugConfig {
-  var debug = true
+  var debug = false
 
   var printRenameTable = true
   var printRenameUnitIn = true

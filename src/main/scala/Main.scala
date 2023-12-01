@@ -9,7 +9,7 @@ object MakeVivadoVerilog {
     // circt.stage.ChiselStage.emitSystemVerilogFile(new Test, Array("--target-dir", args(0)))
     GenConfig.verilator = false
 
-    circt.stage.ChiselStage.emitSystemVerilogFile(new general_tb, Array("--target-dir",  args(0)))
+    circt.stage.ChiselStage.emitSystemVerilogFile(new VivadoTop, Array("--target-dir",  args(0)))
 
 
     for ((name, config) <- BramConfig.map) {
