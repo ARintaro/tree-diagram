@@ -31,9 +31,17 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 
   // 访存流水线有三个流水段
 
-  // F0: 仲裁发射后读寄存器/访问TLB、DCACHE
-  // F1: 接收TLB、DCACHE数据，检验有效性；写入store buffer（store），进行唤醒（load）
-  // F2: 写入物理寄存器，提交ROB
+  // F0: 仲裁发射
+  // F1: 读寄存器、数据旁路
+  // F2: 数据旁路；访问内存、store buffer
+  // F3: 写入物理寄存器，提交ROB
+
+
+  // F0: 仲裁发射
+  // F1: 读寄存器、数据旁路
+  // F2: 数据旁路；访问TLB、Dcache
+  // F3: Store bufffer 内存
+  // F4: 写入物理寄存器，提交ROB
 
   val f0_ins = RegInit(0.U.asTypeOf(new MemoryInstruction))
   val f0_valid = RegInit(false.B)
