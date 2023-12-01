@@ -101,7 +101,7 @@ class FifoIssueQueue[T <: Data with IssueInstruction](
 
   io.issue.valid := front.valid && dataReady
   io.issue.bits := front.bits
-  front.ready := io.issue.ready
+  front.ready := io.issue.ready && dataReady
 }
 
 class IntInstruction

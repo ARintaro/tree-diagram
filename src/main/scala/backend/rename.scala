@@ -346,7 +346,9 @@ class RenameUnit extends Module
       ins.prd := renameTableIO.news(i).pregIdx
 
       if (DebugConfig.printPipeIns) {
-        DebugUtils.Print(cf"PipeIns RobIdx : ${ins.robIdx} Sel1:${ins.selOP1} prs1:${ins.prs1} Sel2:${ins.selOP2} prs2:${ins.prs2}")
+        when (ins.valid) {
+          DebugUtils.Print(cf"PipeIns RobIdx : ${ins.robIdx} Sel1:${ins.selOP1} prs1:${ins.prs1} Sel2:${ins.selOP2} prs2:${ins.prs2}")
+        }
       }
       
       outBuffer(i) := ins

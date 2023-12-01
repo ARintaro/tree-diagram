@@ -85,7 +85,7 @@ class StoreBuffer(findPortNum: Int) extends Module {
     // Print io.news
     if (DebugConfig.printStoreBuffer) {
       DebugUtils.Print(
-        cf"store buffer new, idx: ${io.news.idx} foldSucc: ${newFoldSucc} paddr: ${io.news.store.paddr}, value: ${io.news.store.value}, bytes: ${io.news.store.bytes} "
+        cf"store buffer new, idx: ${io.news.idx} foldSucc: ${newFoldSucc} paddr: 0x${io.news.store.paddr}%x, value: ${io.news.store.value}, bytes: ${io.news.store.bytes} "
       )
     }
 
@@ -146,9 +146,11 @@ class StoreBuffer(findPortNum: Int) extends Module {
       busy := false.B
       if (DebugConfig.printStoreBuffer) {
         DebugUtils.Print(
-          cf"store buffer bus ack, paddr: ${writeStore.paddr}, value: ${writeStore.value}, bytes: ${writeStore.bytes}"
+          cf"store buffer bus ack, paddr: 0x${writeStore.paddr}%x, value: ${writeStore.value}, bytes: ${writeStore.bytes}"
         )
       }
+      free := UIntToOH(begin)
+      begin := begin + 1.U
     }
   }.otherwise {
     when(commited(begin)) {
@@ -160,15 +162,13 @@ class StoreBuffer(findPortNum: Int) extends Module {
       busIO.dataWrite := curStore.value
       busIO.dataBytesSelect := curStore.bytes
       busIO.addr := curStore.paddr
-      free := UIntToOH(begin)
-      begin := begin + 1.U
     }
 
   }
 
-  valid := valid | alloc & ~free
+  valid := (valid & ~free) | alloc 
   // 处理commit
-  commited := commited & ~free | io.commits
+  commited := (commited & ~free) | io.commits
     .map(x => Mux(x.valid, UIntToOH(x.idx), 0.U))
     .reduce(_ | _)
 
@@ -177,18 +177,21 @@ class StoreBuffer(findPortNum: Int) extends Module {
     for (i <- 0 until BackendConfig.maxCommitsNum) {
       when(io.commits(i).valid) {
         DebugUtils.Print(
-          cf"store buffer commit, idx: ${io.commits(i).idx}, paddr: ${stores(io.commits(i).idx).paddr}, value: ${stores(io.commits(i).idx).value}, bytes: ${stores(io.commits(i).idx).bytes}"
+          cf"store buffer commit, idx: ${io.commits(i).idx}, paddr: 0x${stores(io.commits(i).idx).paddr}%x, value: ${stores(io.commits(i).idx).value}, bytes: ${stores(io.commits(i).idx).bytes}"
         )
       }
     }
 
+    DebugUtils.Print("==== Store Buffer BEGIN==== ")
+
     for (i <- 0 until BackendConfig.storeBufferSize) {
       when(valid(i)) {
         DebugUtils.Print(
-          cf"store buffer store, idx: ${i}, commit: ${commited(i)} paddr: ${stores(i).paddr}, value: ${stores(i).value}, bytes: ${stores(i).bytes}"
+          cf"idx: ${i}, commit: ${commited(i)} paddr: 0x${stores(i).paddr}%x, value: ${stores(i).value}, bytes: ${Binary(stores(i).bytes)}"
         )
       }
     }
+    DebugUtils.Print("==== Store Buffer END ==== ")
   }
 
 

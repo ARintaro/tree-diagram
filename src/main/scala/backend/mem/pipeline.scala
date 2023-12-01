@@ -29,13 +29,19 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   val f0_ins = RegInit(0.U.asTypeOf(new MemoryInstruction))
   val f0_valid = RegInit(false.B)
 
-  // 如果没有停顿，或者F0目前是气泡，流入指令
   val f0_done = !stall || !f0_valid
+
   io.in.ready := f0_done
 
   when(f0_done) {
     f0_ins := io.in.bits
     f0_valid := io.in.valid
+    
+    when (io.in.valid) {
+      DebugUtils.Print(
+        cf"[mem] Pipe${index} issue, robidx: ${io.in.bits.robIdx}, imm: ${io.in.bits.imm}, prs1: ${io.in.bits.prs1}, prd_or_prs2: ${io.in.bits.prd_or_prs2}, memType: ${io.in.bits.memType}"
+      )
+    }
   }
 
   // F1
@@ -71,7 +77,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   val f2_data = Reg(UInt(32.W))
   val f2_robIdx = Reg(UInt(BackendConfig.robIdxWidth))
   val f2_memType = Reg(Bool())
-  val f2_bytes = Reg(UInt(MEM_LEN_WIDTH))
+  val f2_bytes = Reg(UInt(4.W))
   val f2_prd = Reg(UInt(BackendConfig.pregIdxWidth))
   val f2_valid = RegInit(false.B)
 
@@ -88,7 +94,10 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
     f2_data := f1_ins.getValue(f2_vaddr_wire, f2_data_wire)
     f2_robIdx := f1_ins.robIdx
     f2_memType := f1_ins.memType
-    f2_bytes := f1_ins.getBytes(f2_data_wire)
+    f2_bytes := f1_ins.getBytes(f2_vaddr_wire)
+
+    DebugUtils.Print(cf" $f2_vaddr_wire")
+
     f2_valid := f1_valid
     f2_prd := f1_ins.prd_or_prs2
   }
@@ -121,76 +130,78 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 
   val f3_store_type_wire = WireInit(0.U(STORE_TYPE_WIDTH))
   val f3_wakeup_wire = WireInit(false.B)
-  
+
   f3_robIdx := f2_robIdx
   f3_prd := f2_prd
-  f3_writeRd := f2_memType
+  f3_writeRd := !f2_memType
   f3_storeType := f3_store_type_wire
 
-  
+  when(f2_valid) {
+    when(f2_memType) {
+      // store
+      // TODO : MMIO_BUFFER
+      f3_store_type_wire := STORE_RAM
 
-  when(f2_memType) {
-    // store
-    // TODO : MMIO_BUFFER
-    f3_store_type_wire := STORE_RAM
+      io.newStore.valid := true.B
+      when(io.newStore.succ) {
+        // 写入 Store Buffer 成功
+        f3_valid := true.B
+        f3_storeBufferIdx := io.newStore.idx
+      }.otherwise {
+        // 写入 Store Buffer 失败，需要停顿重试
+        f3_valid := false.B
+        stall := true.B
+      }
 
-    io.newStore.valid := true.B
-    when(io.newStore.succ) {
-      // 写入 Store Buffer 成功
-	  f3_valid := true.B
-	  f3_storeBufferIdx := io.newStore.idx
     }.otherwise {
-      // 写入 Store Buffer 失败，需要停顿重试
-	  f3_valid := false.B
-	  stall := true.B
+      // load
+      // TODO : LOAD_MMIO
+      f3_store_type_wire := NO_STORE
+
+      when(io.findStore.valid) {
+        // 在 Store Buffer 中找到数据
+
+        when((io.findStore.bytes & f2_bytes) === f2_bytes) {
+          // 如果找到的修改是load的子集, 可以直接使用数据
+          f3_valid := true.B
+          // TODO: NOTE Half、Byte等需要在这里变换数据
+          f3_data := io.findStore.value
+          f3_bus_data := false.B
+          f3_wakeup_wire := true.B
+        }.otherwise {
+          // 如果不是，需要停顿直到查不到或者属于子集为止
+          stall := true.B
+          f3_valid := false.B
+        }
+
+      }.otherwise {
+        // 在 Buffer 中找不到数据，需要自行 load
+
+        // TODO: 搜索Dcache结果
+        io.bus.stb := true.B
+        io.bus.addr := f3_word_paddr_wire
+        io.bus.dataBytesSelect := f2_bytes
+        io.bus.dataMode := false.B
+        io.bus.dataWrite := DontCare
+
+        when(io.bus.ack) {
+          f3_bus_data := true.B
+          f3_valid := true.B
+          f3_wakeup_wire := true.B
+
+        }.otherwise {
+          stall := true.B
+          f3_valid := false.B
+        }
+
+      }
     }
-
-  }.otherwise {
-    // load
-	// TODO : LOAD_MMIO
-	f3_store_type_wire := NO_STORE
-	
-	when(io.findStore.valid) {
-	  // 在 Store Buffer 中找到数据
-	  
-	  when ((io.findStore.bytes & f2_bytes) === f2_bytes) {
-		// 如果找到的修改是load的子集, 可以直接使用数据
-		f3_valid := true.B
-		// TODO: NOTE Half、Byte等需要在这里变换数据
-		f3_data := io.findStore.value
-		f3_bus_data := false.B
-		f3_wakeup_wire := true.B
-	  } .otherwise {
-		// 如果不是，需要停顿直到查不到或者属于子集为止
-		stall := true.B
-		f3_valid := false.B
-	  }
-	  
-	} .otherwise {
-	  // 在 Buffer 中找不到数据，需要自行 load
-	  
-	  // TODO: 搜索Dcache结果
-	  io.bus.stb := true.B
-	  io.bus.addr := f3_word_paddr_wire
-	  io.bus.dataBytesSelect := f2_bytes
-	  io.bus.dataMode := false.B
-	  io.bus.dataWrite := DontCare
-	  
-	  when (io.bus.ack) {
-		f3_bus_data := true.B
-		f3_valid := true.B
-		f3_wakeup_wire := true.B
-
-
-	  } .otherwise {
-		stall := true.B
-		f3_valid := false.B
-	  }
-
-	}
+  } .otherwise {
+    stall := false.B
+    f3_valid := false.B
   }
 
-  BackendUtils.BroadcastWakeup(index, f3_prd, f3_wakeup_wire)
+  BackendUtils.BroadcastWakeup(index, f2_prd, f3_wakeup_wire)
 
   // F4 写回ROB
 
@@ -212,6 +223,19 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   io.robComplete.jumpTarget := DontCare
   io.robComplete.storeBufferIdx := f3_storeBufferIdx
   io.robComplete.storeType := f3_storeType
+
+  if (DebugConfig.printWriteBack) {
+    when(io.regWrite.valid) {
+      DebugUtils.Print(
+        cf"[mem] Pipe${index} writeback, rd: ${f3_prd}, value: ${f4_data_wire}"
+      )
+    }
+    when(io.robComplete.valid) {
+      DebugUtils.Print(
+        cf"[mem] complete${index}, robidx: ${io.robComplete.robIdx}"
+      )
+    }
+  }
 
   when(ctrlIO.flush) {
     f0_valid := false.B
