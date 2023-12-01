@@ -136,6 +136,6 @@ object BackendConfig {
   // 唤醒和旁路网络中，intPipe占用[0, intPipelineNum - 1]
   // memPipe占用intPipelineNum
 
-  val storeBufferSize = 16
+  val storeBufferSize = 8
   val storeBufferIdxWidth = log2Ceil(storeBufferSize).W
 }

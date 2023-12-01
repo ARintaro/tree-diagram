@@ -1,5 +1,5 @@
 VIVADO_DIR ?= /mnt/e/computer/cod23-grp67/thinpad_top.srcs/sources_1/new/
-VERILATOR_DIR ?= /mnt/e/computer/guaning/backend/naive_tb/
+VERILATOR_DIR ?= ./build/verilator
 TEST_DIR ?= ./build/test
 CONFIG_DEBUG ?= true
 

@@ -3,206 +3,222 @@ package core
 import chisel3._
 import chisel3.util._
 
-
 class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   val io = IO(new Bundle {
-	val in = Flipped(Decoupled(new MemoryInstruction))
+    val in = Flipped(Decoupled(new MemoryInstruction))
 
-	val robComplete = new RobCompleteRequest // 连接ROB
-	val regRead = Vec(2, new RegisterReadRequest)
-	val regWrite = new RegisterWriteRequest
-	val newStore = new NewStoreRequest  // 连接storeBuffer
-	val findStore = new StoreFindRequest  // 连接storeBuffer
-	val bus = BusMasterInterface()
+    val robComplete = new RobCompleteRequest // 连接ROB
+    val regRead = Vec(2, new RegisterReadRequest)
+    val regWrite = new RegisterWriteRequest
+    val newStore = new NewStoreRequest // 连接storeBuffer
+    val findStore = new StoreFindRequest // 连接storeBuffer
+    val bus = BusMasterInterface()
   })
 
   val ctrlIO = IO(new Bundle {
-	val flush = Input(Bool())
+    val flush = Input(Bool())
   })
-
-  // initialize
-  io.newStore.valid := false.B
-  io.newStore.store := DontCare
-  io.findStore.paddr := DontCare
-  io.bus.master_turn_off()
-
-  io.regRead(0).id := io.in.bits.prs1 // 对于读&写寄存器指令，从rs1中读取基地址
-  io.regRead(1).id := io.in.bits.prd_or_prs2 // 对于写寄存器指令从rs2中读取值
-
-  // 访存流水线有三个流水段
 
   // F0: 仲裁发射
   // F1: 读寄存器、数据旁路
   // F2: 数据旁路；访问内存、store buffer
   // F3: 写入物理寄存器，提交ROB
 
-
-  // F0: 仲裁发射
-  // F1: 读寄存器、数据旁路
-  // F2: 数据旁路；访问TLB、Dcache
-  // F3: Store bufffer 内存
-  // F4: 写入物理寄存器，提交ROB
+  val stall = WireInit(false.B)
 
   val f0_ins = RegInit(0.U.asTypeOf(new MemoryInstruction))
   val f0_valid = RegInit(false.B)
-  val f0_done = WireInit(false.B)
-  val f0_src1 = Reg(UInt(32.W)) // 从rs1中读取基地址
-  val f0_src2 = Reg(UInt(32.W)) // 从rs2中读取值(仅对store指令有效)
 
-  val f1_rd = RegInit(0.U(BackendConfig.pregIdxWidth))
-  val f1_storeType = RegInit(0.U(STORE_TYPE_WIDTH))
-  val f1_robIdx = RegInit(0.U(BackendConfig.robIdxWidth))
-  val f1_wbVal = RegInit(0.U(32.W))
-  val f1_wb = RegInit(false.B)
-  val f1_valid = RegInit(false.B)
-  // Buffer 中的Idx，有可能是Store Buffer，也有可能是MMIO Buffer
-  val f1_bufferIdx = RegInit(0.U(BackendConfig.storeBufferIdxWidth))
-  
-  val sideway0 = BackendUtils.SearchSideway(io.in.bits.prs1, io.in.bits.prd_or_prs2)
+  // 如果没有停顿，或者F0目前是气泡，流入指令
+  val f0_done = !stall || !f0_valid
+  io.in.ready := f0_done
 
-  when (f0_done) {
-	io.in.ready := true.B
-	f0_ins := io.in.bits
-	f0_src1 := Mux(sideway0(0).valid, sideway0(0).value, io.regRead(0).value)
-	f0_src2 := Mux(sideway0(1).valid, sideway0(1).value, io.regRead(1).value)
-	f0_valid := io.in.valid
-
-	if (DebugConfig.printIssue) {
-		when (io.in.valid) {
-			DebugUtils.Print(cf"[mem] Pipe${index} issue, robidx: ${io.in.bits.robIdx}")
-		}
-	}
-	
-
-  } .otherwise {
-	io.in.ready := false.B
+  when(f0_done) {
+    f0_ins := io.in.bits
+    f0_valid := io.in.valid
   }
 
-  val wakeupValid = WireInit(false.B)
   // F1
-  val sideway1 = BackendUtils.SearchSideway(f0_ins.prs1, f0_ins.prd_or_prs2)
-  when (f0_valid) {
-	val paddr = Mux(sideway1(0).valid, sideway1(0).value, f0_src1) + f0_ins.imm
-	val data = Mux(sideway1(1).valid, sideway1(1).value, f0_src2)
+  val f1_src1 = Reg(UInt(32.W))
+  val f1_src2 = Reg(UInt(32.W))
+  val f1_ins = RegInit(0.U.asTypeOf(new MemoryInstruction))
+  val f1_valid = RegInit(false.B)
 
-	// TODO : 在这里进行TLB与dcache访问
+  val f1_sideway = BackendUtils.SearchSideway(f0_ins.prs1, f0_ins.prd_or_prs2)
 
-	val storeType = WireInit(0.U(STORE_TYPE_WIDTH))
-	when (f0_ins.memType) {
-	  // Store
-	  
-	  // TODO : 根据总线返回确认是MMIO，如果是MMIO不应该写入store buffer，单独写一个MMIO Store
-	  storeType := STORE_RAM // 这里暂时先不考虑MMIO
-	  io.newStore.valid := true.B
-	  // TODO : 补完getStoreIns()
-	  io.newStore.store := f0_ins.getStoreIns(paddr, data)
-		when (io.newStore.succ) {
-			f0_done := true.B
-			f1_robIdx := f0_ins.robIdx
-			f1_bufferIdx := io.newStore.idx
-			f1_wb := false.B
-			f1_valid := true.B
-			f1_storeType := storeType
-		} .otherwise {
-			f0_done := false.B
-			f1_valid := false.B
-		}
-	}.otherwise {
-	
-	  // Load
-	  val alignedPaddr = Cat(paddr(31, 2), 0.U(2.W))
-	  io.findStore.paddr := alignedPaddr
-	  // TODO : 补完getBytes
-	  val bytes = f0_ins.getBytes(paddr(1, 0))
-	  // 在store中找到数据
-	  when (io.findStore.valid) {
-		// 如果查找位是store中写入位的子集
-	  	when ((io.findStore.bytes & bytes) === bytes) {
-			// 在buffer中找到数据
-			f0_done := true.B
-			f1_valid := true.B
-			f1_robIdx := f0_ins.robIdx
-			f1_wb := true.B
-			f1_wbVal := io.findStore.value
-			f1_rd := f0_ins.prd_or_prs2
-			// TODO : 找到数据后，广播唤醒
-			wakeupValid := true.B
-		} .otherwise {
-			// 等待，直到查不到或查到属于子集为止
-			f0_done := false.B
-			f1_valid := false.B
-		}
-	  } .otherwise {
-		// buffer中找不到数据，需要自行load
-		// TODO : Dcache
-		// TODO : 在store buffer中仅找到一个修改时，在这里可以直接合并两个修改，无需等到store buffer写回
-		io.bus.stb := true.B
-		io.bus.addr := alignedPaddr
-		io.bus.dataBytesSelect := bytes
-		io.bus.dataMode := false.B
-		io.bus.dataWrite := DontCare
-		when (io.bus.ack) {
-			f0_done := true.B
-			f1_valid := true.B
-			f1_robIdx := f0_ins.robIdx
-			f1_wb := true.B
-			f1_wbVal := io.bus.dataRead
-			f1_rd := f0_ins.prd_or_prs2
-			wakeupValid := true.B
-		} .otherwise {
-			f0_done := false.B
-			f1_valid := false.B
-		}
-	  }
-	}
-  } .otherwise {
-	f0_done := true.B
-	f1_valid := false.B
+  val f1_done = !stall || !f1_valid
+
+  io.regRead(0).id := f0_ins.prs1
+  io.regRead(1).id := f0_ins.prd_or_prs2
+
+  when(f1_done) {
+    f1_src1 := Mux(
+      f1_sideway(0).valid,
+      f1_sideway(0).value,
+      io.regRead(0).value
+    )
+    f1_src2 := Mux(
+      f1_sideway(1).valid,
+      f1_sideway(1).value,
+      io.regRead(1).value
+    )
+    f1_valid := f0_valid
+    f1_ins := f0_ins
   }
-  BackendUtils.BroadcastWakeup(index, f0_ins.prd_or_prs2, wakeupValid) // 广播唤醒
-
 
   // F2
+  val f2_word_vaddr = Reg(UInt(BusConfig.ADDR_WIDTH))
+  val f2_data = Reg(UInt(32.W))
+  val f2_robIdx = Reg(UInt(BackendConfig.robIdxWidth))
+  val f2_memType = Reg(Bool())
+  val f2_bytes = Reg(UInt(MEM_LEN_WIDTH))
+  val f2_prd = Reg(UInt(BackendConfig.pregIdxWidth))
+  val f2_valid = RegInit(false.B)
 
-  val writeValid = WireInit(f1_valid && f1_wb)
+  val f2_sideway = BackendUtils.SearchSideway(f1_ins.prs1, f1_ins.prd_or_prs2)
+  val f2_vaddr_wire =
+    Mux(f2_sideway(0).valid, f2_sideway(0).value, f1_src1) + f1_ins.imm
+  val f2_data_wire = Mux(f2_sideway(1).valid, f2_sideway(1).value, f1_src2)
+  val f2_done = !stall || !f2_valid
 
-  // TODO : 是否为MMIO类型，如果为MMIO类型，ROB提交时应该在MMIO BUFERR中提交
+  // TODO: 使用，访问 TLB，Dcache
 
-  // TODO : 旁路网路广播
-  BackendUtils.BroadcastSideway(index, f1_rd, f1_wbVal, writeValid)
-  
-  // TODO : 完成物理寄存器的写入
-  io.regWrite.valid := writeValid
-  io.regWrite.id := f1_rd
-  io.regWrite.value := f1_wbVal
-
-  // TODO : rob complete
-  io.robComplete.valid := f1_valid
-  io.robComplete.robIdx := f1_robIdx
-  io.robComplete.jump := false.B
-  io.robComplete.jumpTarget := DontCare
-  io.robComplete.exception := false.B
-  io.robComplete.exceptionCode := 0.U
-  io.robComplete.storeBufferIdx := f1_bufferIdx
-  io.robComplete.storeType := f1_storeType
-
-  if(DebugConfig.printWriteBack) {
-    when (io.regWrite.valid) {
-      DebugUtils.Print(cf"[mem] Pipe${index} writeback, rd: ${f1_rd}, value: ${f1_wbVal}")
-    }
-    when(io.robComplete.valid) {
-      DebugUtils.Print(cf"[mem] complete${index}, robidx: ${io.robComplete.robIdx}")
-    }
+  when(f2_done) {
+    f2_word_vaddr := Cat(f2_vaddr_wire(31, 2), 0.U(2.W))
+    f2_data := f1_ins.getValue(f2_vaddr_wire, f2_data_wire)
+    f2_robIdx := f1_ins.robIdx
+    f2_memType := f1_ins.memType
+    f2_bytes := f1_ins.getBytes(f2_data_wire)
+    f2_valid := f1_valid
+    f2_prd := f1_ins.prd_or_prs2
   }
 
-  // TODO : flush
-  when (ctrlIO.flush) {
-	f0_valid := false.B
-	f1_valid := false.B
-	io.regWrite.valid := false.B
-	io.robComplete.valid := false.B
-	io.newStore.valid := false.B
-	assert(!io.in.valid)
-  }	
-}
+  // F3
 
+  val f3_robIdx = Reg(UInt(BackendConfig.robIdxWidth))
+  val f3_prd = Reg(UInt(BackendConfig.pregIdxWidth))
+  val f3_writeRd = RegInit(false.B)
+
+  val f3_data = Reg(UInt(32.W))
+  val f3_valid = RegInit(false.B)
+  val f3_storeType = RegInit(0.U(STORE_TYPE_WIDTH))
+  val f3_storeBufferIdx = RegInit(0.U(BackendConfig.storeBufferIdxWidth))
+
+  val f3_bus_data = RegInit(false.B)
+
+  // TODO : 从TLB接受地址
+  val f3_word_paddr_wire = f2_word_vaddr
+
+  io.findStore.paddr := f3_word_paddr_wire
+
+  // 默认关闭
+  io.newStore.valid := false.B
+  io.newStore.store.bytes := f2_bytes
+  io.newStore.store.value := f2_data
+  io.newStore.store.paddr := f3_word_paddr_wire
+
+  io.bus.master_turn_off()
+
+  val f3_store_type_wire = WireInit(0.U(STORE_TYPE_WIDTH))
+  val f3_wakeup_wire = WireInit(false.B)
+  
+  f3_robIdx := f2_robIdx
+  f3_prd := f2_prd
+  f3_writeRd := f2_memType
+  f3_storeType := f3_store_type_wire
+
+  
+
+  when(f2_memType) {
+    // store
+    // TODO : MMIO_BUFFER
+    f3_store_type_wire := STORE_RAM
+
+    io.newStore.valid := true.B
+    when(io.newStore.succ) {
+      // 写入 Store Buffer 成功
+	  f3_valid := true.B
+	  f3_storeBufferIdx := io.newStore.idx
+    }.otherwise {
+      // 写入 Store Buffer 失败，需要停顿重试
+	  f3_valid := false.B
+	  stall := true.B
+    }
+
+  }.otherwise {
+    // load
+	// TODO : LOAD_MMIO
+	f3_store_type_wire := NO_STORE
+	
+	when(io.findStore.valid) {
+	  // 在 Store Buffer 中找到数据
+	  
+	  when ((io.findStore.bytes & f2_bytes) === f2_bytes) {
+		// 如果找到的修改是load的子集, 可以直接使用数据
+		f3_valid := true.B
+		// TODO: NOTE Half、Byte等需要在这里变换数据
+		f3_data := io.findStore.value
+		f3_bus_data := false.B
+		f3_wakeup_wire := true.B
+	  } .otherwise {
+		// 如果不是，需要停顿直到查不到或者属于子集为止
+		stall := true.B
+		f3_valid := false.B
+	  }
+	  
+	} .otherwise {
+	  // 在 Buffer 中找不到数据，需要自行 load
+	  
+	  // TODO: 搜索Dcache结果
+	  io.bus.stb := true.B
+	  io.bus.addr := f3_word_paddr_wire
+	  io.bus.dataBytesSelect := f2_bytes
+	  io.bus.dataMode := false.B
+	  io.bus.dataWrite := DontCare
+	  
+	  when (io.bus.ack) {
+		f3_bus_data := true.B
+		f3_valid := true.B
+		f3_wakeup_wire := true.B
+
+
+	  } .otherwise {
+		stall := true.B
+		f3_valid := false.B
+	  }
+
+	}
+  }
+
+  BackendUtils.BroadcastWakeup(index, f3_prd, f3_wakeup_wire)
+
+  // F4 写回ROB
+
+  val f4_write_rd_wire = WireInit(f3_writeRd && f3_valid)
+
+  val f4_data_wire = WireInit(Mux(f3_bus_data, io.bus.dataRead, f3_data))
+
+  BackendUtils.BroadcastSideway(index, f3_prd, f4_data_wire, f4_write_rd_wire)
+
+  io.regWrite.valid := f4_write_rd_wire
+  io.regWrite.id := f3_prd
+  io.regWrite.value := f4_data_wire
+
+  io.robComplete.valid := f3_valid
+  io.robComplete.robIdx := f3_robIdx
+  io.robComplete.jump := false.B
+  io.robComplete.exception := false.B
+  io.robComplete.exceptionCode := DontCare
+  io.robComplete.jumpTarget := DontCare
+  io.robComplete.storeBufferIdx := f3_storeBufferIdx
+  io.robComplete.storeType := f3_storeType
+
+  when(ctrlIO.flush) {
+    f0_valid := false.B
+    f1_valid := false.B
+    f2_valid := false.B
+    f3_valid := false.B
+    assert(!io.in.valid)
+  }
+
+}

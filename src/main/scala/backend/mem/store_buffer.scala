@@ -68,7 +68,6 @@ class StoreBuffer(findPortNum: Int) extends Module {
 
   // 处理新建请求
 
-  // 尝试合并
   val newHit = VecInit(
     stores.map(x => x.paddr === io.news.store.paddr)
   ).asUInt

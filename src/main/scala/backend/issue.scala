@@ -95,13 +95,13 @@ class FifoIssueQueue[T <: Data with IssueInstruction](
   queue.io.enq <> io.enq
 
   val front = queue.io.deq(0)
-  val busy = RegNext(BackendUtils.GetBusy())
+  val busy = BackendUtils.GetBusy()
 
   val dataReady = front.bits.checkReady(busy)
 
   io.issue.valid := front.valid && dataReady
   io.issue.bits := front.bits
-  front.ready := io.issue.ready && dataReady
+  front.ready := io.issue.ready
 }
 
 class IntInstruction
@@ -155,12 +155,7 @@ class MemoryInstruction
     return Mux(memType, !busy(prs1) && !busy(prd_or_prs2), !busy(prs1))
   }
 
-  def getStoreIns(paddr: UInt, value: UInt): StoreIns = {
-    assert(memType)
-    val store = Wire(new StoreIns)
-    store.paddr := Cat(paddr(31, 2), 0.U(2.W))
-    // sw rs1, rs2, imm
-    // sb rs1, imm(rs2) 意思是rs1的值写入rs2+imm地址，rs1取低8位
+  def getValue(addr: UInt, value: UInt): UInt = {
     val rawValue = MuxLookup(memLen, 0.U)(
       Seq(
         MEM_BYTE -> value(7, 0),
@@ -168,7 +163,7 @@ class MemoryInstruction
         MEM_WORD -> value
       )
     )
-    store.value := MuxLookup(paddr(1, 0), 0.U)(
+    MuxLookup(addr(1, 0), 0.U)(
       Seq(
         "b00".U -> rawValue,
         "b01".U -> (rawValue << 8.U),
@@ -176,11 +171,9 @@ class MemoryInstruction
         "b11".U -> (rawValue << 24.U)
       )
     )
-    store.bytes := getBytes(paddr(1, 0))
-    store
   }
 
-  def getBytes(last2bits: UInt): UInt = {
+  def getBytes(addr: UInt): UInt = {
     val rawBytes = MuxLookup(memLen, 0.U)(
       Seq(
         MEM_BYTE -> "b0001".U,
@@ -188,7 +181,7 @@ class MemoryInstruction
         MEM_WORD -> "b1111".U
       )
     )
-    return (rawBytes << last2bits)
+    return (rawBytes << addr(1, 0))
   }
 
 }
