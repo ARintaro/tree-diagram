@@ -8,7 +8,7 @@ object GenConfig {
 }
 
 object DebugConfig {
-  var debug = false
+  var debug = true
 
   var printRenameTable = true
   var printRenameUnitIn = true
@@ -29,6 +29,7 @@ object DebugConfig {
   val printRob = true
   val printRobNew = true
   val printPipeIns = true
+  val printStoreBuffer = true
 
   var printBusy = true
 }
@@ -127,6 +128,8 @@ object BackendConfig {
   val intQueueScanWidth = 4
 
   val memPipelineNum = 1
+  val memQueueSize = 8
+ 
   val pipelineNum = intPipelineNum + memPipelineNum
   val wakeUpNum = pipelineNum
   val sidewayNum = pipelineNum

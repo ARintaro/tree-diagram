@@ -46,6 +46,14 @@ class Backend extends Module {
 
   val memPipe = Module(new MemoryPipeline(BackendConfig.intPipelineNum))
 
+  val memQueue = Module(
+    new FifoIssueQueue(
+      gen=new MemoryInstruction,
+      size=BackendConfig.memQueueSize,
+      enqPort=FrontendConfig.decoderNum
+    )
+  )
+
   val storeBuffer = Module(new StoreBuffer(findPortNum = 1)) // TODO : 1个findPortNum够用吗
 
   if(DebugConfig.printIssue) {
@@ -78,6 +86,7 @@ class Backend extends Module {
       x <> y
     }
   }
+  dispatch.io.mem <> memQueue.io.enq
 
   // Int Queues
   intQueues.foreach(_.ctrlIO.flush := flush)
@@ -93,8 +102,11 @@ class Backend extends Module {
     pipe.ctrlIO.flush := flush
   }
 
+  // Mem Queues
+  memQueue.ctrlIO.flush := flush
+
   // MEM Pipeline
-  memPipe.io.in <> dispatch.io.mem(0)
+  memPipe.io.in <> memQueue.io.issue
   memPipe.io.robComplete <> rob.completeIO(BackendConfig.intPipelineNum) // 这里的robComplete是给memPipe用的,下标是BackendConfig.intPipelineNum
   memPipe.io.regRead <> registers.io.reads(BackendConfig.intPipelineNum)
   memPipe.io.regWrite <> registers.io.writes(BackendConfig.intPipelineNum)

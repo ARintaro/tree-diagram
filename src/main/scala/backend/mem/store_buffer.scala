@@ -54,9 +54,6 @@ class StoreBuffer(findPortNum: Int) extends Module {
     val flush = Input(Bool())
   })
 
-  //initialize
-  io.news.succ := false.B
-  io.news.idx := DontCare
   busIO.master_turn_off()
 
   val commited = RegInit(0.U(BackendConfig.storeBufferSize.W))
@@ -86,6 +83,13 @@ class StoreBuffer(findPortNum: Int) extends Module {
   when(io.news.valid) {
     assert(io.news.store.paddr(1, 0) === 0.U)
 
+    // Print io.news
+    if (DebugConfig.printStoreBuffer) {
+      DebugUtils.Print(
+        cf"store buffer new, idx: ${io.news.idx} foldSucc: ${newFoldSucc} paddr: ${io.news.store.paddr}, value: ${io.news.store.value}, bytes: ${io.news.store.bytes} "
+      )
+    }
+
     when(newFoldSucc) {
       val oldBytes = stores(newFoldHitIdx).bytes
       val newBytes = io.news.store.bytes
@@ -109,6 +113,8 @@ class StoreBuffer(findPortNum: Int) extends Module {
         end := inc
         stores(end) := io.news.store
         alloc := UIntToOH(end)
+        io.news.succ := true.B
+        io.news.idx := end
       }.otherwise {
         // 队列已满
         io.news.succ := false.B
@@ -139,17 +145,24 @@ class StoreBuffer(findPortNum: Int) extends Module {
     busIO.addr := writeStore.paddr
     when(busIO.ack) {
       busy := false.B
+      if (DebugConfig.printStoreBuffer) {
+        DebugUtils.Print(
+          cf"store buffer bus ack, paddr: ${writeStore.paddr}, value: ${writeStore.value}, bytes: ${writeStore.bytes}"
+        )
+      }
     }
   }.otherwise {
     when(commited(begin)) {
       busy := true.B
       busIO.stb := true.B
-      writeStore := stores(begin)
+      val curStore = stores(begin)
+      writeStore := curStore
       busIO.dataMode := true.B
-      busIO.dataWrite := writeStore.value
-      busIO.dataBytesSelect := writeStore.bytes
-      busIO.addr := writeStore.paddr
+      busIO.dataWrite := curStore.value
+      busIO.dataBytesSelect := curStore.bytes
+      busIO.addr := curStore.paddr
       free := UIntToOH(begin)
+      begin := begin + 1.U
     }
 
   }
@@ -159,6 +172,26 @@ class StoreBuffer(findPortNum: Int) extends Module {
   commited := commited & ~free | io.commits
     .map(x => Mux(x.valid, UIntToOH(x.idx), 0.U))
     .reduce(_ | _)
+
+  // 循环打印io.commits
+  if (DebugConfig.printStoreBuffer) {
+    for (i <- 0 until BackendConfig.maxCommitsNum) {
+      when(io.commits(i).valid) {
+        DebugUtils.Print(
+          cf"store buffer commit, idx: ${io.commits(i).idx}, paddr: ${stores(io.commits(i).idx).paddr}, value: ${stores(io.commits(i).idx).value}, bytes: ${stores(io.commits(i).idx).bytes}"
+        )
+      }
+    }
+
+    for (i <- 0 until BackendConfig.storeBufferSize) {
+      when(valid(i)) {
+        DebugUtils.Print(
+          cf"store buffer store, idx: ${i}, commit: ${commited(i)} paddr: ${stores(i).paddr}, value: ${stores(i).value}, bytes: ${stores(i).bytes}"
+        )
+      }
+    }
+  }
+
 
   val queue = Wire(Vec(BackendConfig.storeBufferSize, new StoreIns))
   val queueValid = Wire(Vec(BackendConfig.storeBufferSize, Bool()))
@@ -195,7 +228,7 @@ class StoreBuffer(findPortNum: Int) extends Module {
     val newValid = valid & commited
     valid := newValid
     end := begin + PopCount(newValid)
-
+    recover := false.B
   }
 
 }

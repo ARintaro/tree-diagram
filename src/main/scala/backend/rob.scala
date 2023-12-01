@@ -147,6 +147,7 @@ class ReorderBuffer extends Module with InstructionConstants {
       entry.jumpTarget := complete.jumpTarget
       entry.exception := entry.exception | complete.exception
       entry.storeBufferIdx := complete.storeBufferIdx
+      entry.storeType := complete.storeType
       when(complete.exception) {
         entry.exceptionCode := complete.exceptionCode
       }
@@ -220,13 +221,21 @@ class ReorderBuffer extends Module with InstructionConstants {
     }
   }
 
-  val allValid = commitValidsFinal.reduce(_ && _)
   io.commitsStoreBuffer.zip(commitValidsFinal).zip(commitEntry).foreach {
     case ((out, valid), entry) => {
       out.idx := entry.storeBufferIdx
-      out.valid := (valid && entry.storeType === STORE_RAM)
+      out.valid := (valid && (entry.storeType === STORE_RAM))
     }
   }
+
+  // val commitsStoreBuffer_wire = WireInit(io.commitsStoreBuffer)
+  // if (DebugConfig.printRob){
+  //   DebugUtils.Print("============= This is the commitsStoreBuffer ============")
+  //   for (i <- 0 until BackendConfig.maxCommitsNum) {
+  //     DebugUtils.Print(cf"idx: ${i}  valid: ${commitsStoreBuffer_wire(i).valid}  idx: ${commitsStoreBuffer_wire(i).idx}")
+  //   }
+  //   DebugUtils.Print("================ End commitsStoreBuffer =================")
+  // }
 
   head := head + PopCount(commitValidsFinal)
 
@@ -239,14 +248,16 @@ class ReorderBuffer extends Module with InstructionConstants {
   if (DebugConfig.printRob) {
     when(head =/= tail) {
       DebugUtils.Print("=== ROB ===")
-      DebugUtils.Print(cf"IDX | OVER | Jv | commit | vaddr")
+      DebugUtils.Print(cf"IDX | OVER | Jv | vaddr | store_type")
       for (i <- 0 until BackendConfig.robSize) {
         val idx = head + i.U
         when(inQueueMask(idx)) {
           val entry = entries(idx)
-          DebugUtils.Print(cf"${idx}  ${entry.completed} ${commitJumpValid(idx)} ${commitValidsFinal(idx)} 0x${entry.vaddr}%x")
+          DebugUtils.Print(cf"${idx}  ${entry.completed} ${commitJumpValid(idx)}  0x${entry.vaddr}%x ${entry.storeType}")
         }
       }
+      // print commitValidsFinal
+      DebugUtils.Print(cf"commitValidsFinal: ${commitValidsFinal.asTypeOf(Vec(BackendConfig.maxCommitsNum, Bool()))}")
       DebugUtils.Print("=== END ===")
     }
   }

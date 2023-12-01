@@ -46,8 +46,8 @@ class general_tb extends Module {
     val debug = Module(new DebugModule)
 }
 
-// class general_top extends Module {
-//     val tb = Module(new general_tb)
-//     val virtualSram = Module(new virtualSram)
-//     tb.sram0 <> virtualSram.io
-// }
+class general_top extends Module {
+    val tb = Module(new general_tb)
+    val virtualSram = Module(new virtualSram)
+    tb.sram0 <> virtualSram.io
+}

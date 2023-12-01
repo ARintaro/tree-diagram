@@ -58,7 +58,13 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 	f0_src1 := Mux(sideway0(0).valid, sideway0(0).value, io.regRead(0).value)
 	f0_src2 := Mux(sideway0(1).valid, sideway0(1).value, io.regRead(1).value)
 	f0_valid := io.in.valid
-	// TODO : 在这里进行TLB与dcache访问
+
+	if (DebugConfig.printIssue) {
+		when (io.in.valid) {
+			DebugUtils.Print(cf"[mem] Pipe${index} issue, robidx: ${io.in.bits.robIdx}")
+		}
+	}
+	
 
   } .otherwise {
 	io.in.ready := false.B
@@ -70,6 +76,9 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   when (f0_valid) {
 	val paddr = Mux(sideway1(0).valid, sideway1(0).value, f0_src1) + f0_ins.imm
 	val data = Mux(sideway1(1).valid, sideway1(1).value, f0_src2)
+
+	// TODO : 在这里进行TLB与dcache访问
+
 	val storeType = WireInit(0.U(STORE_TYPE_WIDTH))
 	when (f0_ins.memType) {
 	  // Store
@@ -168,6 +177,15 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   io.robComplete.exceptionCode := 0.U
   io.robComplete.storeBufferIdx := f1_bufferIdx
   io.robComplete.storeType := f1_storeType
+
+  if(DebugConfig.printWriteBack) {
+    when (io.regWrite.valid) {
+      DebugUtils.Print(cf"[mem] Pipe${index} writeback, rd: ${f1_rd}, value: ${f1_wbVal}")
+    }
+    when(io.robComplete.valid) {
+      DebugUtils.Print(cf"[mem] complete${index}, robidx: ${io.robComplete.robIdx}")
+    }
+  }
 
   // TODO : flush
   when (ctrlIO.flush) {

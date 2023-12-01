@@ -79,14 +79,14 @@ class FifoIssueQueue[T <: Data with IssueInstruction](
     gen: T,
     size: Int,
     enqPort: Int
-) {
+)extends Module {
   val io = IO(new Bundle {
     val issue = Decoupled(gen)
     val enq = Vec(enqPort, Flipped(Decoupled(gen)))
   })
 
   val ctrlIO = IO(new Bundle {
-    val flush = Bool()
+    val flush = Input(Bool())
   })
 
   val queue = Module(new CircularQueue(gen, size, enqPort, 1, "IssueQueue"))
@@ -95,16 +95,13 @@ class FifoIssueQueue[T <: Data with IssueInstruction](
   queue.io.enq <> io.enq
 
   val front = queue.io.deq(0)
-  val busy = BackendUtils.GetBusy()
-  when (io.issue.ready && front.valid && front.bits.checkReady(busy)) {
-    io.issue.valid := true.B
-    io.issue.bits := front.bits
-    front.ready := true.B
-  } .otherwise {
-    queue.io.deq(0).ready := false.B
-    io.issue.valid := false.B
-    io.issue.bits := DontCare
-  }
+  val busy = RegNext(BackendUtils.GetBusy())
+
+  val dataReady = front.bits.checkReady(busy)
+
+  io.issue.valid := front.valid && dataReady
+  io.issue.bits := front.bits
+  front.ready := io.issue.ready && dataReady
 }
 
 class IntInstruction

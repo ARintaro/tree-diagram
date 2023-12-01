@@ -51,6 +51,15 @@ class DispatchUnit extends Module with InstructionConstants {
         DebugUtils.Print(cf"intpipeline${i} dispatched, robidx: ${io.ints(i).bits.robIdx}")
       }
     }
+    for(i <- 0 until FrontendConfig.decoderNum) {
+      when(io.mem(i).valid) {
+        DebugUtils.Print(cf"mem dispatched, robidx: ${io.mem(i).bits.robIdx} type: ${io.mem(i).bits.memType} addr_preg: ${io.mem(i).bits.prs1} value_preg: ${io.mem(i).bits.prd_or_prs2}")
+      }
+    }
+    // print isMem
+    DebugUtils.Print(
+      cf"dispatch isMem: ${isMem.asTypeOf(Vec(FrontendConfig.decoderNum, Bool()))} isInt: ${isInt.asTypeOf(Vec(FrontendConfig.decoderNum, Bool()))}"
+    )
   }
 
   // TODO : 根据队列剩余容量的Dispatch
