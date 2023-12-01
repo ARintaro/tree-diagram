@@ -24,9 +24,10 @@ object MakeVivadoVerilog {
 object MakeVerilatorVerilog {
   def main(args: Array[String]): Unit = {
     GenConfig.verilator = true
+    DebugConfig.debug = args(1) == "true"
+
+    println(s"Generate Verilator Verilog Debug${DebugConfig.debug}")
     circt.stage.ChiselStage.emitSystemVerilogFile(new general_top, Array("--target-dir", args(0)), Array("-O=debug"))
-    
-    CacheConfig.icache.Print()
   }
 }
 
