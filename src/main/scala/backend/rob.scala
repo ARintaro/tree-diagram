@@ -2,6 +2,7 @@ package core
 
 import chisel3._
 import chisel3.util._
+import svsim.Backend
 
 class RobEntry extends Bundle with InstructionConstants {
   val completed = Bool()
@@ -38,7 +39,7 @@ class NewRobRequest extends Bundle with InstructionConstants {
   val exception = Input(Bool())
   val exceptionCode = Input(UInt(InsConfig.EXCEPTION_WIDTH))
 
-  val idx = Output(UInt(BackendConfig.robSize.W))
+  val idx = Output(UInt(BackendConfig.robIdxWidth))
 }
 
 class RobNewIO extends Bundle {

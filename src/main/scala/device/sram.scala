@@ -38,7 +38,7 @@ class Sram(name : String) extends Module {
   externSram.io.writeDisable := true.B
   externSram.io.bytesDisable := DontCare
 
-  externSram.io.addr := busIO.addr(20, 0)
+  externSram.io.addr := busIO.addr(21, 2)
   externSram.io.bytesDisable := ~busIO.dataBytesSelect
 
   busIO.ack := false.B

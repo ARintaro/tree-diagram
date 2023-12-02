@@ -263,7 +263,7 @@ class RenameUnit extends Module
   val io = IO(new Bundle {
     val in = Vec(FrontendConfig.decoderNum, Input(new DecodedInstruction))
     val done = Output(Bool())
-
+    
 
     val out = Vec(FrontendConfig.decoderNum, Output(new PipelineInstruction))
     val nextDone = Input(Bool())

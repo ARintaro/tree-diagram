@@ -17,7 +17,7 @@ class virtualSram extends Module {
     //io.dataRead := dataReadBuffer
     val extendedByteDisable = Cat(Fill(8, io.bytesDisable(3)), Fill(8, io.bytesDisable(2)), Fill(8, io.bytesDisable(1)), Fill(8, io.bytesDisable(0)))
 
-    io.dataRead := mem.read((io.addr - "h80000000".U) >> 2.U)
+    io.dataRead := mem.read(io.addr(19, 0))
     val state_reg = RegInit(init)
     switch(state_reg) {
         is(init) {
@@ -34,7 +34,7 @@ class virtualSram extends Module {
         }
         is(writing) {
             state_reg := init
-            mem.write((io.addr - "h80000000".U) >> 2.U, (io.dataWrite & (~extendedByteDisable)) + (io.dataRead & extendedByteDisable))
+            mem.write(io.addr(19, 0), (io.dataWrite & (~extendedByteDisable)) + (io.dataRead & extendedByteDisable))
         }
     }
 }
