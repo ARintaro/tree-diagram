@@ -26,7 +26,7 @@ class CompressedIssueQueue[T <: Data with IssueInstruction](
   val ram = RegInit(VecInit(Seq.fill(size)(0.U.asTypeOf(gen))))
   val valid = RegInit(0.U(size.W))
 
-  val full = valid === (-1.S(size.W)).asUInt
+  val full = valid(size - 1)
 
   io.enq.ready := !full
 
