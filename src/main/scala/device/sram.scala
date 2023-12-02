@@ -42,6 +42,7 @@ class Sram(name : String) extends Module {
   externSram.io.bytesDisable := ~busIO.dataBytesSelect
 
   busIO.ack := false.B
+  busIO.mmio := false.B
   busIO.dataRead := dataReg
 
   switch(state) {
@@ -78,8 +79,6 @@ class Sram(name : String) extends Module {
 }
 
 class SramWithArbiter(name : String, inputNum : Int) extends Module {
-  
-
   val io = IO(new Bundle {
     val masters = Vec(inputNum, BusSlaveInterface())
   })
@@ -100,6 +99,7 @@ class SramWithArbiter(name : String, inputNum : Int) extends Module {
   for (i <- 0 until inputNum) {
     io.masters(i).ack := false.B
     io.masters(i).dataRead := sram.busIO.dataRead
+    io.masters(i).mmio := false.B
   }
 
   when (busy) {

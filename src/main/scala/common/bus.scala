@@ -23,6 +23,8 @@ class BusSlaveInterface extends Bundle {
   // 读出数据
   val dataRead = Output(UInt(BusConfig.DATA_WIDTH))
 
+  val mmio = Output(Bool())
+
   def master_turn_off() = {
     stb := false.B
     addr := DontCare
@@ -56,10 +58,13 @@ class BusMux (slaveNum: Int) extends Module {
   val slavesSelect = io.allocate.map(x => (addr & x.mask) === x.start)
                                 .scan(false.B)((a, b) => b & !a).tail
   val masterCycle = io.master.stb
-  val selectError = masterCycle & (!slavesSelect.reduce(_ | _))
-  // master
-  io.master.dataRead := Mux(selectError, 0.U, Mux1H(slavesSelect, io.slaves.map(_.dataRead)))
-  io.master.ack := Mux(selectError, false.B, Mux1H(slavesSelect, io.slaves.map(_.ack)))
+
+  assert(PopCount(slavesSelect) === 1.U)
+
+  io.master.dataRead := Mux1H(slavesSelect, io.slaves.map(_.dataRead))
+  io.master.ack := Mux1H(slavesSelect, io.slaves.map(_.ack))
+  io.master.mmio := Mux1H(slavesSelect, io.slaves.map(_.mmio))
+
   // slave
   io.slaves.zip(slavesSelect).foreach{case (slave, select) => {
     slave.stb := masterCycle & select
