@@ -10,7 +10,7 @@ class Backend extends Module {
     val renameDone = Output(Bool())
     val robRedirect = Valid(UInt(BusConfig.ADDR_WIDTH))
 
-    val memBus = Vec(2, BusMasterInterface())
+    val devBus = Vec(2, BusMasterInterface())
   })
 
   val ctrlIO = IO(new Bundle {
@@ -111,7 +111,7 @@ class Backend extends Module {
   memPipe.ctrlIO.flush := flushDelay
   memPipe.io.findStore <> storeBuffer.io.finds(0)
   memPipe.io.newStore <> storeBuffer.io.news
-  memPipe.io.bus <> io.memBus(0)
+  memPipe.io.bus <> io.devBus(0)
 
   // ROB
   rob.commitsIO <> renameTable.io.commits
@@ -137,7 +137,7 @@ class Backend extends Module {
 
 
   // store buffer
-  storeBuffer.busIO <> io.memBus(1)
+  storeBuffer.busIO <> io.devBus(1)
   storeBuffer.ctrlIO.flush := flushDelay
 
 }

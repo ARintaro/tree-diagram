@@ -61,41 +61,73 @@ class TestTop extends Module {
 
 }
 
-class VivadoTop extends Module {
-  val Ifu = Module(new InstructionFetchUnit)
-    val sram0 = IO(new ExternalSramInterface)
-    val backend = Module(new Backend)
-    val decoder = Module(new DecodeUnit)
+class TreeDiagram extends Module {
+  val io = IO(new Bundle {
+    val baseRam = new ExternalSramInterface
+    val extRam = new ExternalSramInterface
+  })
 
-    SramUtils.AddExternalSram(sram0, "baseSram")
-    val SramController = Module(new SramWithArbiter("baseSram", 4))
+  val ifu = Module(new InstructionFetchUnit)
+  val backend = Module(new Backend)
+  val decoder = Module(new DecodeUnit)
 
-    // 四根总线
-    val Buses = Seq.fill(4)(Module(new BusMux(1)))
-    // 将Buses的输出连接到SramController的输入
-    for(i <- 0 until 4) {
-        Buses(i).io.slaves(0) <> SramController.io.masters(i)
-    }
-    // 接入地址分配
-    for(i <- 0 until 4) {
-        Buses(i).io.allocate(0).start := BusConfig.BASE_RAM_START.U
-        Buses(i).io.allocate(0).mask := BusConfig.BASE_RAM_MASK.U
-    }
-    // 分别来自 ifu(tlb & icache), backend(storebuffer & mem_pipeline)
-    Buses(0).io.master <> Ifu.sramBusIO(0)
-    Buses(1).io.master <> Ifu.sramBusIO(1)
-    Buses(2).io.master <> backend.io.memBus(0)
-    Buses(3).io.master <> backend.io.memBus(1)
+  SramUtils.AddExternalSram(io.baseRam, "baseRam")
+  SramUtils.AddExternalSram(io.extRam, "extRam")
 
-    Ifu.sramBusIO(0) <> SramController.io.masters(0)
-    Ifu.sramBusIO(1) <> SramController.io.masters(1)
-    Ifu.ctrlIO.clearIcache := false.B
-    Ifu.ctrlIO.clearTLB := false.B
-    Ifu.ctrlIO.flush := backend.ctrlIO.flushPipeline
+  val memBusNum = 2
+  val devBusNum = 2
+  val busNum = memBusNum + devBusNum
 
-    Ifu.io.redirect(0) := backend.io.robRedirect
-    Ifu.io.fetch <> decoder.io.in
-    decoder.io.out <> backend.io.in
-    decoder.io.nextDone := backend.io.renameDone
-    decoder.ctrlIO.flush := RegNext(backend.ctrlIO.flushPipeline)
+  val baseRam = Module(new SramWithArbiter("baseRam", busNum))
+  val extRam = Module(new SramWithArbiter("extRam", busNum))
+
+  // 两条纯内存总线
+  // 0: icache
+  // 1: ifu tlb
+
+  val memBuses = Seq.fill(2)(Module(new BusMux(2)))
+
+  // 将Buses的输出连接到SramController的输入
+  for (i <- 0 until 2) {
+    memBuses(i).io.slaves(0) <> baseRam.io.masters(i)
+    memBuses(i).io.allocate(0).start := BusConfig.BASE_RAM_START.U
+    memBuses(i).io.allocate(0).mask := BusConfig.BASE_RAM_MASK.U
+
+    memBuses(i).io.slaves(1) <> extRam.io.masters(i)
+    memBuses(i).io.allocate(1).start := BusConfig.EXT_RAM_START.U
+    memBuses(i).io.allocate(1).mask := BusConfig.EXT_RAM_MASK.U
+  }
+
+  ifu.sramBusIO(0) <> memBuses(0).io.master
+  ifu.sramBusIO(1) <> memBuses(1).io.master
+
+  // 带设备总线，用于mem_pipeline和storebuffer
+  val devBuses = Seq.fill(2)(Module(new BusMux(2)))
+
+  for (i <- 0 until 2) {
+    devBuses(i).io.slaves(0) <> baseRam.io.masters(i + memBusNum)
+    devBuses(i).io.allocate(0).start := BusConfig.BASE_RAM_START.U
+    devBuses(i).io.allocate(0).mask := BusConfig.BASE_RAM_MASK.U
+
+    devBuses(i).io.slaves(1) <> extRam.io.masters(i + memBusNum)
+    devBuses(i).io.allocate(1).start := BusConfig.EXT_RAM_START.U
+    devBuses(i).io.allocate(1).mask := BusConfig.EXT_RAM_MASK.U
+
+    // TODO : uart
+  }
+
+  backend.io.devBus(0) <> devBuses(0).io.master
+  backend.io.devBus(1) <> devBuses(1).io.master
+
+  ifu.ctrlIO.clearIcache := false.B
+  ifu.ctrlIO.clearTLB := false.B
+  ifu.ctrlIO.flush := backend.ctrlIO.flushPipeline
+
+  ifu.io.redirect(0) := backend.io.robRedirect
+  ifu.io.fetch <> decoder.io.in
+  decoder.io.out <> backend.io.in
+  decoder.io.nextDone := backend.io.renameDone
+  decoder.ctrlIO.flush := backend.ctrlIO.flushPipeline
+
+  val debug = Module(new DebugModule)
 }

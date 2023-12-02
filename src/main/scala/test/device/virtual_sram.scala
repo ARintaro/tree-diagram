@@ -7,7 +7,7 @@ import core.SramConfig
 import chisel3.experimental._
 import Math.pow
 
-class virtualSram extends Module {
+class VirtualSram extends Module {
     val io = IO(Flipped(new ExternalSramInterface))
 
     val mem = SyncReadMem(pow(2, 20).toInt, UInt(32.W))
