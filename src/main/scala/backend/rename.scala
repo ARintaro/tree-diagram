@@ -122,9 +122,11 @@ class RenameTable extends Module {
       
       // 比较sfree中1的个数和news中valid的个数
       
-      val validCount = PopCount(io.renames.news.map(_.valid))
-      val freeCount = PopCount(sfree)
-      val succ = validCount <= freeCount
+      // val validCount = PopCount(io.renames.news.map(_.valid))
+      // val freeCount = PopCount(sfree)
+      // 由于 逻辑寄存器 + ROB项数 <= 物理寄存器数，重命名一定会成功
+      require(32 + BackendConfig.robSize <= BackendConfig.physicalRegNum)
+      val succ = true.B
 
       // 当前重命名表
       var curRT = Wire(Vec(32, new RenameTableEntry))
@@ -263,7 +265,7 @@ class RenameUnit extends Module
   val io = IO(new Bundle {
     val in = Vec(FrontendConfig.decoderNum, Input(new DecodedInstruction))
     val done = Output(Bool())
-    
+
 
     val out = Vec(FrontendConfig.decoderNum, Output(new PipelineInstruction))
     val nextDone = Input(Bool())

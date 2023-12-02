@@ -52,12 +52,12 @@ class InstructionFetchUnit extends Module {
     }
   }
 
-  //暂时不处理flush
   fetchQueue.ctrlIO.flush := ctrlIO.flush
   tlb.ctrlIO.clear := ctrlIO.clearTLB
   icache.ctrlIO.clear := ctrlIO.clearIcache
 
-  icache.ctrlIO.flush := ctrlIO.flush
+  // flush时 fetchQueue会拒绝输入，icache无所谓flush
+  icache.ctrlIO.flush := false.B
   tlb.ctrlIO.flush := ctrlIO.flush
 
   sramBusIO(0) <> icache.sramIO
