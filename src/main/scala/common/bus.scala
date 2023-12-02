@@ -59,7 +59,7 @@ class BusMux (slaveNum: Int) extends Module {
                                 .scan(false.B)((a, b) => b & !a).tail
   val masterCycle = io.master.stb
 
-  assert(PopCount(slavesSelect) === 1.U)
+  assert(!io.master.stb || (PopCount(slavesSelect) === 1.U))
 
   io.master.dataRead := Mux1H(slavesSelect, io.slaves.map(_.dataRead))
   io.master.ack := Mux1H(slavesSelect, io.slaves.map(_.ack))

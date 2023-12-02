@@ -31,6 +31,8 @@ object DebugConfig {
   val printPipeIns = true
   val printStoreBuffer = true
 
+  val printException = true
+
   var printBusy = true
 }
 
@@ -115,7 +117,7 @@ object FrontendConfig {
 }
 
 object BackendConfig {
-  val physicalRegNum = 64
+  val physicalRegNum = 48
   val robSize = 16
 
   val pregIdxWidth = log2Ceil(physicalRegNum).W

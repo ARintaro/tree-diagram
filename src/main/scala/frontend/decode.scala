@@ -82,6 +82,7 @@ class Decoder extends Module with InstructionConstants {
   io.out.memType := signals(8)
   io.out.memLen := signals(9)
   io.out.exceptionCode := Mux(io.in.exception, io.in.exceptionCode, signals(10))
+
   
   // TODO : Predict Jump
   io.out.predictJump := false.B
@@ -122,7 +123,7 @@ class DecodeUnit extends Module {
 
   when (ctrlIO.flush) {
     outBuffer.foreach(_.valid := false.B)
-    io.out.foreach(_.valid := false.B)
+    // io.out.foreach(_.valid := false.B)
 
   } .elsewhen(io.nextDone) {
     for (i <- 0 until FrontendConfig.decoderNum) {

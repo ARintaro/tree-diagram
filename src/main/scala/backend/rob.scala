@@ -3,6 +3,7 @@ package core
 import chisel3._
 import chisel3.util._
 import svsim.Backend
+import javax.swing.DebugGraphics
 
 class RobEntry extends Bundle with InstructionConstants {
   val completed = Bool()
@@ -192,7 +193,13 @@ class ReorderBuffer extends Module with InstructionConstants {
 
     when(invalidEntry.exception) {
       // TODO : 异常跳转地址, 根据异常类型设定firstInvalid是否提交
-      assert(false.B)
+      if (DebugConfig.printException) {
+        DebugUtils.Print("=== Exception ===")
+        DebugUtils.Print(cf"Commit Exception ${invalidEntry.exceptionCode}")
+        DebugUtils.Print("=== END ===")
+      }
+      commitValidsFinal(firstInvalidIdx) := true.B
+      assert(invalidEntry.exceptionCode === InsConfig.ExceptionCode.EC_BREAKPOINT)
     }.otherwise {
       // 分支预测失败
       commitValidsFinal(firstInvalidIdx) := true.B
