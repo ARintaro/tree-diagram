@@ -68,14 +68,14 @@ class StoreBuffer(findPortNum: Int) extends Module {
 
   // 处理新建请求
 
-  val newHit = VecInit(
-    stores.map(x => x.paddr === io.news.store.paddr)
-  ).asUInt
-  val newFoldHit = newHit & notCommited
-  assert(PopCount(newFoldHit) <= 1.U)
+  // val newHit = VecInit(
+  //   stores.map(x => x.paddr === io.news.store.paddr)
+  // ).asUInt
+  // val newFoldHit = newHit & notCommited
+  // assert(PopCount(newFoldHit) <= 1.U)
 
-  val newFoldSucc = newFoldHit.orR
-  val newFoldHitIdx = OHToUInt(newFoldHit)
+  // val newFoldSucc = newFoldHit.orR
+  // val newFoldHitIdx = OHToUInt(newFoldHit)
 
   val alloc = WireInit(0.U(BackendConfig.storeBufferSize.W))
 
@@ -85,27 +85,27 @@ class StoreBuffer(findPortNum: Int) extends Module {
     // Print io.news
     if (DebugConfig.printStoreBuffer) {
       DebugUtils.Print(
-        cf"store buffer new, idx: ${io.news.idx} foldSucc: ${newFoldSucc} paddr: 0x${io.news.store.paddr}%x, value: ${io.news.store.value}, bytes: ${io.news.store.bytes} "
+        cf"store buffer new, idx: ${io.news.idx} paddr: 0x${io.news.store.paddr}%x, value: ${io.news.store.value}, bytes: ${io.news.store.bytes} "
       )
     }
 
-    when(newFoldSucc) {
-      val oldBytes = stores(newFoldHitIdx).bytes
-      val newBytes = io.news.store.bytes
-      stores(newFoldHitIdx).bytes := oldBytes | newBytes
+    // when(newFoldSucc) {
+    //   val oldBytes = stores(newFoldHitIdx).bytes
+    //   val newBytes = io.news.store.bytes
+    //   stores(newFoldHitIdx).bytes := oldBytes | newBytes
 
-      val oldData = stores(newFoldHitIdx).value.asTypeOf(Vec(4, UInt(8.W)))
-      val newData = io.news.store.value.asTypeOf(Vec(4, UInt(8.W)))
-      val write = Wire(Vec(4, UInt(8.W)))
-      for (i <- 0 until 4) {
-        write(i) := Mux(newBytes(i), newData(i), oldData(i))
-      }
-      stores(newFoldHitIdx).value := write.asUInt
+    //   val oldData = stores(newFoldHitIdx).value.asTypeOf(Vec(4, UInt(8.W)))
+    //   val newData = io.news.store.value.asTypeOf(Vec(4, UInt(8.W)))
+    //   val write = Wire(Vec(4, UInt(8.W)))
+    //   for (i <- 0 until 4) {
+    //     write(i) := Mux(newBytes(i), newData(i), oldData(i))
+    //   }
+    //   stores(newFoldHitIdx).value := write.asUInt
 
-      io.news.succ := true.B
-      io.news.idx := newFoldHitIdx
+    //   io.news.succ := true.B
+    //   io.news.idx := newFoldHitIdx
 
-    }.otherwise {
+    // }.otherwise {
       val inc = end + 1.U
       when(inc =/= begin) {
         // 队列未满
@@ -119,7 +119,7 @@ class StoreBuffer(findPortNum: Int) extends Module {
         io.news.succ := false.B
         io.news.idx := DontCare
       }
-    }
+    // }
   }.otherwise {
     io.news.succ := false.B
     io.news.idx := DontCare
