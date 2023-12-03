@@ -83,10 +83,19 @@ class UartController extends Module {
     BoringUtils.addSource(txd, "uart_txd")
 
     box.io.uart_rxd_i := rxd
-    box.io.uart_txd_o := txd
+    txd := box.io.uart_txd_o
 
-
-
+    box.io.clk_i := clock
+    box.io.rst_i := reset
+    box.io.wb_cyc_i := io.bus.stb
+    box.io.wb_stb_i := io.bus.stb
+    box.io.wb_adr_i := io.bus.addr
+    box.io.wb_dat_i := io.bus.dataWrite
+    box.io.wb_sel_i := io.bus.dataBytesSelect
+    box.io.wb_we_i := io.bus.dataMode
+    io.bus.ack := box.io.wb_ack_o
+    io.bus.dataRead := box.io.wb_dat_o
+    io.bus.mmio := true.B
   }
 }
 
