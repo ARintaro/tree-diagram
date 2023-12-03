@@ -68,15 +68,6 @@ class StoreBuffer(findPortNum: Int) extends Module {
 
   // 处理新建请求
 
-  // val newHit = VecInit(
-  //   stores.map(x => x.paddr === io.news.store.paddr)
-  // ).asUInt
-  // val newFoldHit = newHit & notCommited
-  // assert(PopCount(newFoldHit) <= 1.U)
-
-  // val newFoldSucc = newFoldHit.orR
-  // val newFoldHitIdx = OHToUInt(newFoldHit)
-
   val alloc = WireInit(0.U(BackendConfig.storeBufferSize.W))
 
   when(io.news.valid) {
@@ -89,37 +80,19 @@ class StoreBuffer(findPortNum: Int) extends Module {
       )
     }
 
-    // when(newFoldSucc) {
-    //   val oldBytes = stores(newFoldHitIdx).bytes
-    //   val newBytes = io.news.store.bytes
-    //   stores(newFoldHitIdx).bytes := oldBytes | newBytes
-
-    //   val oldData = stores(newFoldHitIdx).value.asTypeOf(Vec(4, UInt(8.W)))
-    //   val newData = io.news.store.value.asTypeOf(Vec(4, UInt(8.W)))
-    //   val write = Wire(Vec(4, UInt(8.W)))
-    //   for (i <- 0 until 4) {
-    //     write(i) := Mux(newBytes(i), newData(i), oldData(i))
-    //   }
-    //   stores(newFoldHitIdx).value := write.asUInt
-
-    //   io.news.succ := true.B
-    //   io.news.idx := newFoldHitIdx
-
-    // }.otherwise {
-      val inc = end + 1.U
-      when(inc =/= begin) {
-        // 队列未满
-        end := inc
-        stores(end) := io.news.store
-        alloc := UIntToOH(end)
-        io.news.succ := true.B
-        io.news.idx := end
-      }.otherwise {
-        // 队列已满
-        io.news.succ := false.B
-        io.news.idx := DontCare
-      }
-    // }
+    val inc = end + 1.U
+    when(inc =/= begin) {
+      // 队列未满
+      end := inc
+      stores(end) := io.news.store
+      alloc := UIntToOH(end)
+      io.news.succ := true.B
+      io.news.idx := end
+    }.otherwise {
+      // 队列已满
+      io.news.succ := false.B
+      io.news.idx := DontCare
+    }
   }.otherwise {
     io.news.succ := false.B
     io.news.idx := DontCare
@@ -166,7 +139,7 @@ class StoreBuffer(findPortNum: Int) extends Module {
 
   }
 
-  valid := (valid & ~free) | alloc 
+  valid := (valid & ~free) | alloc
   // 处理commit
   commited := (commited & ~free) | io.commits
     .map(x => Mux(x.valid, UIntToOH(x.idx), 0.U))
@@ -177,7 +150,9 @@ class StoreBuffer(findPortNum: Int) extends Module {
     for (i <- 0 until BackendConfig.maxCommitsNum) {
       when(io.commits(i).valid) {
         DebugUtils.Print(
-          cf"store buffer commit, idx: ${io.commits(i).idx}, paddr: 0x${stores(io.commits(i).idx).paddr}%x, value: ${stores(io.commits(i).idx).value}, bytes: ${stores(io.commits(i).idx).bytes}"
+          cf"store buffer commit, idx: ${io.commits(i).idx}, paddr: 0x${stores(
+              io.commits(i).idx
+            ).paddr}%x, value: ${stores(io.commits(i).idx).value}, bytes: ${stores(io.commits(i).idx).bytes}"
         )
       }
     }
@@ -187,13 +162,14 @@ class StoreBuffer(findPortNum: Int) extends Module {
     for (i <- 0 until BackendConfig.storeBufferSize) {
       when(valid(i)) {
         DebugUtils.Print(
-          cf"idx: ${i}, commit: ${commited(i)} paddr: 0x${stores(i).paddr}%x, value: ${stores(i).value}, bytes: ${Binary(stores(i).bytes)}"
+          cf"idx: ${i}, commit: ${commited(i)} paddr: 0x${stores(i).paddr}%x, value: ${stores(
+              i
+            ).value}, bytes: ${Binary(stores(i).bytes)}"
         )
       }
     }
     DebugUtils.Print("==== Store Buffer END ==== ")
   }
-
 
   val queue = Wire(Vec(BackendConfig.storeBufferSize, new StoreIns))
   val queueValid = Wire(Vec(BackendConfig.storeBufferSize, Bool()))
@@ -233,4 +209,110 @@ class StoreBuffer(findPortNum: Int) extends Module {
     recover := false.B
   }
 
+}
+
+
+class CompressedStoreBuffer(findPortNum : Int) extends Module {
+  val io = IO(new Bundle {
+    val news = Flipped(new NewStoreRequest)
+    val commits = Vec(BackendConfig.maxCommitsNum, Flipped(new CommitStoreRequest))
+    val finds = Vec(findPortNum, Flipped(new StoreFindRequest))
+  })
+
+  val busIO = IO(BusMasterInterface())
+
+  val ctrlIO = IO(new Bundle {
+    val flush = Input(Bool())
+  })
+
+  val stores = Reg(Vec(BackendConfig.storeBufferSize, new StoreIns))
+  val valid = RegInit(0.U(BackendConfig.storeBufferSize.W))
+  val commited = RegInit(0.U(BackendConfig.storeBufferSize.W))
+
+  val firstEmptyIdx = PriorityEncoder(~valid)
+
+  // 首先处理commit，经过重排序缓存，commit一定按顺序提交，此时不需要idx
+  val commitCount = PopCount(io.commits.map(_.valid))
+
+  val newCommited = (commited << commitCount) | MaskUtil.GetPrefixMask(BackendConfig.storeBufferSize)(commitCount)
+
+
+  busIO.master_turn_off()
+
+  io.news.succ := !valid(BackendConfig.storeBufferSize - 1)
+  io.news.idx := DontCare
+
+  val deq = WireInit(false.B)
+  val enq = io.news.valid && io.news.succ
+  
+  val busBusy = RegInit(false.B)
+  when (busBusy) {
+    busIO.stb := true.B
+    busIO.dataMode := true.B
+    busIO.dataWrite := stores(0).value
+    busIO.dataBytesSelect := stores(0).bytes
+    busIO.addr := stores(0).paddr
+    when (busIO.ack) {
+      busBusy := false.B
+      deq := true.B
+      if (DebugConfig.printStoreBuffer) {
+        DebugUtils.Print(
+          cf"store buffer bus ack, paddr: 0x${stores(0).paddr}%x, value: ${stores(0).value}, bytes: ${stores(0).bytes}"
+        )
+      }
+    }
+
+  } .otherwise {
+    when (commited(0)) {
+      busBusy := true.B
+      busIO.stb := true.B
+      busIO.dataMode := true.B
+      busIO.addr := stores(0).paddr
+      busIO.dataWrite := stores(0).value
+      busIO.dataBytesSelect := stores(0).bytes      
+    }
+  }
+
+
+  when (deq) {
+    for (i <- 0 until BackendConfig.storeBufferSize - 1) {
+      stores(i) := stores(i + 1)
+    }
+    commited := newCommited >> 1
+  } .otherwise {
+    commited := newCommited
+  }
+
+  when (enq) {
+    val enqIdx = Mux(deq, firstEmptyIdx - 1.U, firstEmptyIdx)
+    stores(enqIdx) := io.news.store
+  }
+
+  when(!enq && deq) {
+    valid := valid >> 1
+  } .elsewhen(enq && !deq) {
+    valid := (valid << 1) | 1.U
+  }
+
+
+  // 处理find
+  for (i <- 0 until findPortNum) {
+    val find = io.finds(i)
+    val findEq = VecInit(
+      stores.map(x => x.paddr === find.paddr)
+    ).asUInt & valid.asUInt
+    val findHit = findEq.orR
+    val findHitIdx = PriorityEncoder(findEq)
+
+    find.valid := findHit
+    find.value := stores(findHitIdx).value
+    find.bytes := stores(findHitIdx).bytes
+  }
+
+
+  when (ctrlIO.flush) {
+    // 由于flush信号延时一周期，可以保证这周期没有commit请求
+    assert(!io.commits.map(_.valid).reduce(_ | _))
+    valid := commited
+  }
 }

@@ -52,7 +52,7 @@ class Backend extends Module {
     )
   )
 
-  val storeBuffer = Module(new StoreBuffer(findPortNum = 1)) // TODO : 1个findPortNum够用吗
+  val storeBuffer = Module(new CompressedStoreBuffer(findPortNum = 1)) // TODO : 1个findPortNum够用吗
 
   if(DebugConfig.printIssue) {
     for(i <- 0 until BackendConfig.intPipelineNum) {
