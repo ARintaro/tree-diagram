@@ -7,14 +7,21 @@ class TreeDiagram extends Module {
   val io = IO(new Bundle {
     val baseRam = new ExternalSramInterface
     val extRam = new ExternalSramInterface
+    val uart = new ExternalUartInterface
   })
 
   val ifu = Module(new InstructionFetchUnit)
   val backend = Module(new Backend)
   val decoder = Module(new DecodeUnit)
 
-  SramUtils.AddExternalSram(io.baseRam, "baseRam")
-  SramUtils.AddExternalSram(io.extRam, "extRam")
+  DeviceUtils.AddExternalSram(io.baseRam, "baseRam")
+  DeviceUtils.AddExternalSram(io.extRam, "extRam")
+
+  if (GenConfig.innerUartModel) {
+    io.uart.txd := DontCare
+  } else {
+    DeviceUtils.AddExternalUart(io.uart)
+  }
 
   val memBusNum = 2
   val devBusNum = 2
@@ -22,6 +29,7 @@ class TreeDiagram extends Module {
 
   val baseRam = Module(new SramWithArbiter("baseRam", busNum))
   val extRam = Module(new SramWithArbiter("extRam", busNum))
+  val uart = Module(new UartWithArbiter(devBusNum))
 
   // 两条纯内存总线
   // 0: icache
@@ -44,7 +52,7 @@ class TreeDiagram extends Module {
   ifu.sramBusIO(1) <> memBuses(1).io.master
 
   // 带设备总线，用于mem_pipeline和storebuffer
-  val devBuses = Seq.fill(2)(Module(new BusMux(2)))
+  val devBuses = Seq.fill(2)(Module(new BusMux(3)))
 
   for (i <- 0 until 2) {
     devBuses(i).io.slaves(0) <> baseRam.io.masters(i + memBusNum)
@@ -55,8 +63,11 @@ class TreeDiagram extends Module {
     devBuses(i).io.allocate(1).start := BusConfig.EXT_RAM_START.U
     devBuses(i).io.allocate(1).mask := BusConfig.EXT_RAM_MASK.U
 
-    // TODO : uart
+    devBuses(i).io.slaves(2) <> uart.io.masters(i)
+    devBuses(i).io.allocate(2).start := BusConfig.UART_START.U
+    devBuses(i).io.allocate(2).mask := BusConfig.UART_MASK.U
   }
+  
 
   backend.io.devBus(0) <> devBuses(0).io.master
   backend.io.devBus(1) <> devBuses(1).io.master

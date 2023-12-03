@@ -96,7 +96,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
     f2_memType := f1_ins.memType
     f2_bytes := f1_ins.getBytes(f2_vaddr_wire)
 
-    DebugUtils.Print(cf" $f2_vaddr_wire")
+    
 
     f2_valid := f1_valid
     f2_prd := f1_ins.prd_or_prs2
@@ -117,6 +117,8 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 
   // TODO : 从TLB接受地址
   val f3_word_paddr_wire = f2_word_vaddr
+
+  DebugUtils.Print(cf"[mem] f3_word_paddr_wire 0x$f3_word_paddr_wire%x")
 
   io.findStore.paddr := f3_word_paddr_wire
 
@@ -177,6 +179,8 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
         // 在 Buffer 中找不到数据，需要自行 load
 
         // TODO: 搜索Dcache结果
+        DebugUtils.Print(cf" [mem] load, addr: 0x${f3_word_paddr_wire}%x, ack ${io.bus.ack}")
+
         io.bus.stb := true.B
         io.bus.dataBytesSelect := f2_bytes
         io.bus.dataMode := false.B
@@ -190,7 +194,6 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
           stall := true.B
           f3_valid := false.B
         }
-        DebugUtils.Print(cf" [mem] load, addr: 0x${f3_word_paddr_wire}%x, ack ${io.bus.ack}")
       }
     }
   } .otherwise {

@@ -83,76 +83,15 @@ class SramWithArbiter(name : String, inputNum : Int) extends Module {
 
   val sram = Module(new Sram(name))
 
-  val busy = RegInit(false.B)
+  val arbiter = Module(new BusArbiter(inputNum))
 
-  val lastReq = Reg(new Bundle {
-    val master = UInt(log2Ceil(inputNum).W)
-    val addr = UInt(SramConfig.ADDR_WIDTH)
-    val dataMode = Bool()
-    val dataWrite = UInt(BusConfig.DATA_WIDTH)
-    val dataBytesSelect = UInt(BusConfig.DATA_BYTES_NUM)
-    val dataRead = UInt(BusConfig.DATA_WIDTH)
-  })
-
-  for (i <- 0 until inputNum) {
-    io.masters(i).ack := false.B
-    io.masters(i).dataRead := sram.busIO.dataRead
-    io.masters(i).mmio := false.B
-  }
-
-  when (busy) {
-    sram.busIO.stb := true.B
-    sram.busIO.addr := lastReq.addr
-    sram.busIO.dataBytesSelect := lastReq.dataBytesSelect
-    sram.busIO.dataMode := lastReq.dataMode
-    sram.busIO.dataWrite := lastReq.dataWrite
-
-    when (sram.busIO.ack) {
-      busy := false.B
-      io.masters(lastReq.master).ack := true.B
-    }
-
-  } .otherwise {
-    val anyStb = io.masters.map(_.stb).reduce(_ || _)
-
-    when (anyStb) {
-      val arbiter = Module(new Arbiter(new EmptyBundle, inputNum))
-      arbiter.io.out.ready := true.B
-
-      io.masters.map(_.stb).zipWithIndex.foreach{case (stb, i) => arbiter.io.in(i).valid := stb}
-      val chosen = arbiter.io.chosen
-
-      val master = io.masters(chosen)
-
-      lastReq.master := chosen
-      lastReq.addr := master.addr
-      lastReq.dataMode := master.dataMode
-      lastReq.dataWrite := master.dataWrite
-      lastReq.dataRead := master.dataRead
-      lastReq.dataBytesSelect := master.dataBytesSelect
-
-      sram.busIO.stb := true.B
-      sram.busIO.addr := master.addr
-      sram.busIO.dataBytesSelect := master.dataBytesSelect
-      sram.busIO.dataMode := master.dataMode
-      sram.busIO.dataWrite := master.dataWrite
-
-      busy := true.B
-    } .otherwise {
-      sram.busIO.stb := false.B
-      sram.busIO.addr := DontCare
-      sram.busIO.dataBytesSelect := DontCare
-      sram.busIO.dataMode := DontCare
-      sram.busIO.dataWrite := DontCare      
-    }
-
-  }
-  
+  io.masters <> arbiter.io.masters
+  arbiter.io.device <> sram.busIO
 
   require (inputNum >= 2)
 }
 
-object SramUtils {
+object DeviceUtils {
   
   // TODO : 反射
   def AddExternalSram(io : ExternalSramInterface, name : String) : Unit = {
@@ -162,6 +101,11 @@ object SramUtils {
     BoringUtils.addSink(io.readDisable, f"${name}_readDisable")
     BoringUtils.addSink(io.writeDisable, f"${name}_writeDisable")
     BoringUtils.addSink(io.bytesDisable, f"${name}_bytesDisable")
+  }
+
+  def AddExternalUart(io : ExternalUartInterface) : Unit = {
+    BoringUtils.addSource(io.rxd, "uart_rxd")
+    BoringUtils.addSink(io.txd, "uart_txd")
   }
 
 

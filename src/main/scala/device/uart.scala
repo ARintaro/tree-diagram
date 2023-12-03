@@ -2,13 +2,14 @@ package core
 
 import chisel3._
 import chisel3.util._
+import chisel3.util.experimental.BoringUtils
 
 class ExternalUartInterface extends Bundle {
   val txd = Output(Bool())
   val rxd = Input(Bool())
 }
 
-class UartController extends BlackBox with HasBlackBoxResource {
+class UartControllerBlackBox extends BlackBox with HasBlackBoxResource {
   val io = IO(new Bundle {
     val clk_i = Input(Clock())
     val rst_i = Input(Reset())
@@ -29,4 +30,76 @@ class UartController extends BlackBox with HasBlackBoxResource {
   addResource("uart_controller.sv")
 }
 
+class UartController extends Module {
+  val io = IO(new Bundle {
+    val bus = new BusSlaveInterface
+  })
 
+  if (GenConfig.innerUartModel) {
+    val busy = RegInit(false.B)
+
+    io.bus.dataRead := DontCare
+    io.bus.ack := false.B
+    io.bus.mmio := true.B
+
+    when (busy) {
+      busy := false.B
+      io.bus.ack := true.B
+      when (io.bus.dataMode) {
+        // Write
+        when (io.bus.addr === BusConfig.UART_START.U) {
+          val data = io.bus.dataWrite(7, 0)
+          DebugUtils.Print(cf"Uart Receive Data 0x$data%x, assci $data%c")
+
+        } .elsewhen(io.bus.addr === (BusConfig.UART_START + 4).U) {
+          assert(false.B, "read only")
+        } .otherwise {
+          assert(false.B, "addr error")
+        }
+      } .otherwise {
+        // Read
+        when (io.bus.addr === BusConfig.UART_START.U) {
+          assert(false.B, "unimpl recv data")
+        } .elsewhen(io.bus.addr === (BusConfig.UART_START + 4).U) {
+          io.bus.dataRead := 0x00000020.U
+        } .otherwise {
+          DebugUtils.Print(cf"ERROR: Uart Addr Error : 0x${io.bus.addr}%x")
+          assert(false.B, "uart addr error")
+        }
+      }
+    } .otherwise {
+      when (io.bus.stb) {
+        busy := true.B
+      }
+    }
+
+  } else {
+    val box = Module(new UartControllerBlackBox)
+
+    val rxd = Wire(Bool())
+    val txd = Wire(Bool())
+
+    BoringUtils.addSink(rxd, "uart_rxd")
+    BoringUtils.addSource(txd, "uart_txd")
+
+    box.io.uart_rxd_i := rxd
+    box.io.uart_txd_o := txd
+
+
+
+  }
+}
+
+class UartWithArbiter(inputNum: Int) extends Module {
+  val io = IO(new Bundle {
+    val masters = Vec(inputNum, BusSlaveInterface())
+  })
+
+  val uart = Module(new UartController)
+  val arbiter = Module(new BusArbiter(inputNum))
+
+  io.masters <> arbiter.io.masters
+  uart.io.bus <> arbiter.io.device
+
+  require(inputNum >= 2)
+}
