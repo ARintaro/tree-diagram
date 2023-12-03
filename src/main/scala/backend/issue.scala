@@ -104,6 +104,74 @@ class FifoIssueQueue[T <: Data with IssueInstruction](
   front.ready := io.issue.ready && dataReady
 }
 
+class FifoCompressedIssueQueue[T <: Data with IssueInstruction](
+    gen: T,
+    size: Int,
+    enqPort: Int
+)extends Module {
+  val io = IO(new Bundle {
+    val issue = Decoupled(gen)
+    val enq = Vec(enqPort, Flipped(Decoupled(gen)))
+  })
+
+  val ctrlIO = IO(new Bundle {
+    val flush = Input(Bool())
+  })
+  
+  val ram = RegInit(VecInit(Seq.fill(size)(0.U.asTypeOf(gen))))
+  val valid = RegInit(0.U(size.W))
+
+  // TODO : 更好的ready
+  io.enq.foreach(_.ready := !valid(size - enqPort)) 
+
+  val busy = BackendUtils.GetBusy()
+
+  val front = ram(0)
+
+  io.issue.valid := valid(0) && front.checkReady(busy)
+  io.issue.bits := front
+
+  val enqIdx = Wire(UInt(log2Ceil(size).W))
+
+  val enqCount = PopCount(io.enq.map(_.valid))
+  val firstEmptyIdx = PriorityEncoder(~valid)
+
+  val newValid = Wire(UInt(size.W))
+
+  when (io.issue.ready && io.issue.valid) {
+    for (i <- 0 until size - 1) {
+      ram(i) := ram(i + 1)
+    }
+    enqIdx := firstEmptyIdx - 1.U
+
+    when (enqCount === 0.U) {
+      newValid := valid >> 1
+    } .otherwise {
+      val move = enqCount - 1.U
+      newValid := (valid << move) | MaskUtil.GetPrefixMask(enqPort)(move)
+    }
+
+  } .otherwise {
+    enqIdx := firstEmptyIdx
+
+    newValid := (valid << enqCount) | MaskUtil.GetPrefixMask(enqPort)(enqCount)
+  }
+
+  for (i <- 0 until enqPort) {
+    when (io.enq(i).valid && io.enq(i).ready) {
+      ram(enqIdx + i.U) := io.enq(i).bits
+    }
+  }
+
+  assert((PopCount(valid) + enqCount) - Mux(io.issue.ready && io.issue.valid, 1.U, 0.U)  === PopCount(newValid))
+
+  when (ctrlIO.flush) {
+    valid := 0.U
+  } .otherwise {
+    valid := newValid
+  }
+}
+
 class IntInstruction
     extends Bundle
     with InstructionConstants

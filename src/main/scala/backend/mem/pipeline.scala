@@ -188,12 +188,11 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
           f3_bus_data := true.B
           f3_valid := true.B
           f3_wakeup_wire := true.B
-
         }.otherwise {
           stall := true.B
           f3_valid := false.B
         }
-
+        DebugUtils.Print(cf" [mem] load, addr: 0x${f3_word_paddr_wire}%x, ack ${io.bus.ack}")
       }
     }
   } .otherwise {
@@ -242,7 +241,6 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
     f1_valid := false.B
     f2_valid := false.B
     f3_valid := false.B
-    assert(!io.in.valid)
   }
 
 }

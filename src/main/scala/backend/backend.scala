@@ -45,7 +45,7 @@ class Backend extends Module {
   val memPipe = Module(new MemoryPipeline(BackendConfig.intPipelineNum))
 
   val memQueue = Module(
-    new FifoIssueQueue(
+    new FifoCompressedIssueQueue(
       gen=new MemoryInstruction,
       size=BackendConfig.memQueueSize,
       enqPort=FrontendConfig.decoderNum

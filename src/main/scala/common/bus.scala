@@ -61,7 +61,13 @@ class BusMux (slaveNum: Int) extends Module {
 
   assert(!io.master.stb || (PopCount(slavesSelect) === 1.U))
 
-  io.master.dataRead := Mux1H(slavesSelect, io.slaves.map(_.dataRead))
+  val dataReg = RegInit(0.U(BusConfig.DATA_WIDTH))
+
+  when (io.master.ack) {
+    dataReg := Mux1H(slavesSelect, io.slaves.map(_.dataRead))
+  }
+
+  io.master.dataRead := dataReg
   io.master.ack := Mux1H(slavesSelect, io.slaves.map(_.ack))
   io.master.mmio := Mux1H(slavesSelect, io.slaves.map(_.mmio))
 

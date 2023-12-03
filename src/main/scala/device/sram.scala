@@ -31,7 +31,6 @@ class Sram(name : String) extends Module {
 
   val idle :: reading :: writting :: Nil = Enum(3)
   var state = RegInit(idle)
-  var dataReg = RegInit(0.U)
 
   externSram.io.dataWrite := 0.U
   externSram.io.readDisable := true.B
@@ -43,7 +42,7 @@ class Sram(name : String) extends Module {
 
   busIO.ack := false.B
   busIO.mmio := false.B
-  busIO.dataRead := dataReg
+  busIO.dataRead := externSram.io.dataRead
 
   switch(state) {
     is (idle) {
@@ -64,8 +63,7 @@ class Sram(name : String) extends Module {
     }
     is (reading) {
       externSram.io.readDisable := false.B
-      busIO.ack := true.B
-      dataReg := externSram.io.dataRead
+      busIO.ack := true.B 
 
       state := idle
     }
