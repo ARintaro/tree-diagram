@@ -123,7 +123,7 @@ class IntPipeline(index: Int) extends Module
     }
   }
   io.robComplete.storeBufferIdx := DontCare
-  io.robComplete.storeType := NO_STORE
+  io.robComplete.storeType := LOAD_RAM
 
   // Flush 逻辑
   

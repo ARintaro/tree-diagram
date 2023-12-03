@@ -22,6 +22,7 @@ class RobEntry extends Bundle with InstructionConstants {
   val exception = Bool()
   val exceptionCode = UInt(InsConfig.EXCEPTION_WIDTH)
 
+
   val storeBufferIdx = UInt(BackendConfig.storeBufferIdxWidth)
   val storeType = UInt(STORE_TYPE_WIDTH)
 
@@ -80,8 +81,10 @@ class ReorderBuffer extends Module with InstructionConstants {
   val io = IO(new Bundle {
     val redirect = Valid(UInt(BusConfig.ADDR_WIDTH))
     val commitsStoreBuffer = Vec(BackendConfig.maxCommitsNum, new CommitStoreRequest)
-  })
 
+
+  })
+  
   val ctrlIO = IO(new Bundle {
     val flushPipeline = Output(Bool())
   })
@@ -96,6 +99,7 @@ class ReorderBuffer extends Module with InstructionConstants {
   val count = tail - head
 
   newIO.restSize := (BackendConfig.robSize - 1).U - count
+
 
   // 默认不发起重定向和冲刷请求
 
@@ -232,7 +236,7 @@ class ReorderBuffer extends Module with InstructionConstants {
   io.commitsStoreBuffer.zip(commitValidsFinal).zip(commitEntry).foreach {
     case ((out, valid), entry) => {
       out.idx := entry.storeBufferIdx
-      out.valid := (valid && (entry.storeType === STORE_RAM))
+      out.valid := (valid && (entry.storeType === STORE_RAM || entry.storeType === STORE_MMIO))
     }
   }
 

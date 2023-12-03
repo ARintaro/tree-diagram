@@ -137,11 +137,11 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   f3_storeType := f3_store_type_wire
 
   when(f2_valid) {
+    io.bus.addr := f3_word_paddr_wire
     when(f2_memType) {
       // store
       // TODO : MMIO_BUFFER
-      f3_store_type_wire := STORE_RAM
-
+      f3_store_type_wire := Mux(io.bus.mmio, STORE_MMIO, STORE_RAM)
       io.newStore.valid := true.B
       when(io.newStore.succ) {
         // 写入 Store Buffer 成功
@@ -156,9 +156,8 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
     }.otherwise {
       // load
       // TODO : LOAD_MMIO
-      f3_store_type_wire := NO_STORE
-
-      when(io.findStore.valid) {
+      f3_store_type_wire := Mux(io.bus.mmio, LOAD_MMIO, LOAD_RAM)
+      when(io.findStore.valid && ~io.bus.mmio) {
         // 在 Store Buffer 中找到数据
 
         when((io.findStore.bytes & f2_bytes) === f2_bytes) {
@@ -179,7 +178,6 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 
         // TODO: 搜索Dcache结果
         io.bus.stb := true.B
-        io.bus.addr := f3_word_paddr_wire
         io.bus.dataBytesSelect := f2_bytes
         io.bus.dataMode := false.B
         io.bus.dataWrite := DontCare

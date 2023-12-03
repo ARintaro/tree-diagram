@@ -133,7 +133,7 @@ trait InstructionConstants {
 
   // storeType
   val STORE_TYPE_WIDTH = 2.W
-  def NO_STORE = 0.U(STORE_TYPE_WIDTH) // 不是store指令，也不是读取MMIO的load指令
+  def LOAD_RAM = 0.U(STORE_TYPE_WIDTH) // 不是store指令，也不是读取MMIO的load指令
   def STORE_RAM = 1.U(STORE_TYPE_WIDTH) // store指令，写入RAM
   def STORE_MMIO = 2.U(STORE_TYPE_WIDTH) // store指令，写入MMIO
   def LOAD_MMIO = 3.U(STORE_TYPE_WIDTH) // load指令，读取MMIO
