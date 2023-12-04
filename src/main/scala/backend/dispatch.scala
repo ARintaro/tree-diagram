@@ -17,6 +17,10 @@ class DispatchUnit extends Module with InstructionConstants {
     val csr = Output(new CsrInstruction) // 连接ExceptionUnit
   })
 
+  val ctrlIO = IO(new Bundle {
+    val flush = Input(Bool())
+  })
+
   val intAllocBegin = RegInit(0.U(log2Ceil(BackendConfig.intPipelineNum).W))
 
   val isInt = VecInit(io.in.map(x => x.valid && x.iqtType === IQT_INT)).asUInt
@@ -109,5 +113,9 @@ class DispatchUnit extends Module with InstructionConstants {
   }
 
   require(BackendConfig.intPipelineNum >= FrontendConfig.decoderNum)
-
+  
+  when(ctrlIO.flush) {
+    // intAllocBegin := 0.U // 我不知道这里要不要清零；黄先生之前没写，应该是不需要的。
+    csrInstructionBuffer := 0.U.asTypeOf(new CsrInstruction)
+  }
 }

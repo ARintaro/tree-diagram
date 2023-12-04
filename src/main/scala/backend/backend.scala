@@ -2,6 +2,7 @@ package core
 
 import chisel3._
 import chisel3.util._
+import chisel3.util.experimental.BoringUtils
 
 class Backend extends Module {
   val io = IO(new Bundle {
@@ -9,6 +10,7 @@ class Backend extends Module {
 
     val renameDone = Output(Bool())
     val robRedirect = Valid(UInt(BusConfig.ADDR_WIDTH))
+    val excRedirect = Valid(UInt(BusConfig.ADDR_WIDTH))
 
     val devBus = Vec(2, BusMasterInterface())
   })
@@ -25,8 +27,8 @@ class Backend extends Module {
   val dispatch = Module(new DispatchUnit)
   val registers = Module(
     new PhysicalRegisterFile(
-      BackendConfig.pipelineNum,
-      BackendConfig.pipelineNum
+      BackendConfig.pipelineNum + 1,
+      BackendConfig.pipelineNum + 1
     )
   )
   val intPipes =
@@ -142,4 +144,14 @@ class Backend extends Module {
   storeBuffer.busIO <> io.devBus(1)
   storeBuffer.ctrlIO.flush := flushDelay
 
+  // exception Unit
+  val excu = Module(new ExceptionUnit)
+  excu.io.exc <> rob.io.newException
+  excu.io.reference <> dispatch.io.csr
+  excu.io.rawExceptionValue1 := 0.U // TODO: 接到前端
+  excu.io.regRead <> registers.io.reads(BackendConfig.intPipelineNum + 1)(0)
+  registers.io.reads(BackendConfig.intPipelineNum + 1)(1).id := 0.U
+  excu.io.regWrite <> registers.io.writes(BackendConfig.intPipelineNum + 1)
+  excu.io.redirect <> io.excRedirect 
+  BoringUtils.addSink(excu.io.updateMtip, "timerInterrupt")
 }

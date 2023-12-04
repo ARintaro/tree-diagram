@@ -36,9 +36,9 @@ class PageTableEntry extends Bundle {
     val V = Bool()
 }
 
-class MemoryManagementUnit extends Module {
-    val io = IO(new Bundle {
+// class MemoryManagementUnit extends Module {
+//     val io = IO(new Bundle {
         
-    })
-}
+//     })
+// }
 

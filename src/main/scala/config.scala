@@ -59,6 +59,8 @@ object BusConfig {
   val EXT_RAM_MASK = 0xFFC00000L
   val UART_START = 0x10000000L
   val UART_MASK = 0xFFFF0000L
+  val TIMER_START = 0x02000000L
+  val TIMER_MASK = 0x03FF0000L
 }
 
 object InsConfig {

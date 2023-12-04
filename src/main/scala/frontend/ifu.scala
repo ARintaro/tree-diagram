@@ -7,7 +7,7 @@ class InstructionFetchUnit extends Module {
   val io = IO(new Bundle {
     val fetch = Vec(FrontendConfig.decoderNum, Decoupled(new RawInstruction()))
 
-    val redirect = Vec(1, Flipped(Valid(UInt(BusConfig.ADDR_WIDTH))))
+    val redirect = Vec(2, Flipped(Valid(UInt(BusConfig.ADDR_WIDTH))))
   })
 
   val sramBusIO = IO(Vec(2, BusMasterInterface()))
@@ -19,10 +19,13 @@ class InstructionFetchUnit extends Module {
     val clearIcache = Input(Bool())
   })
 
-  val pc = Module(new ProgramCounter(2, 0x80000000L))
+  val pc = Module(new ProgramCounter(3, 0x80000000L))
 
   // ROB发来的重定向请求
   pc.io.reqs(1) <> io.redirect(0)
+
+  // exceptionUnit发来的重定向请求
+  pc.io.reqs(2) <> io.redirect(1)
 
   assert(!io.redirect(0).valid || ctrlIO.flush, "Redirect without flush")
 

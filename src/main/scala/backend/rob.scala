@@ -23,7 +23,6 @@ class RobEntry extends Bundle with InstructionConstants {
   val exception = Bool()
   val exceptionCode = UInt(InsConfig.EXCEPTION_WIDTH)
 
-
   val storeBufferIdx = UInt(BackendConfig.storeBufferIdxWidth)
   val storeType = UInt(STORE_TYPE_WIDTH)
 
@@ -88,14 +87,21 @@ class ReorderBuffer extends Module with InstructionConstants {
     val commitsStoreBuffer = Vec(BackendConfig.maxCommitsNum, new CommitStoreRequest)
 
     val head = Output(UInt(BackendConfig.robIdxWidth))
+    val newException = Output(new NewException)
     val empty = Output(Bool())
     val uncertern = Output(Bool())
   })
   
   val ctrlIO = IO(new Bundle {
     val flushPipeline = Output(Bool())
-    val conductCsr = Output(Bool())
+    // val conductCsr = Output(Bool())
   })
+
+  io.newException.valid := false.B
+  io.newException.exceptionCode := 0.U
+  io.newException.precisePC := 0.U
+  io.newException.rawExceptionValue2 := 0.U
+  io.newException.csrTag := false.B
 
   dontTouch(io.uncertern)
 
@@ -217,16 +223,18 @@ class ReorderBuffer extends Module with InstructionConstants {
     ctrlIO.flushPipeline := true.B
 
     when(invalidEntry.exception) {
-      // TODO : 异常跳转地址, 根据异常类型设定firstInvalid是否提交
+      io.newException.valid := true.B
+      io.newException.exceptionCode := invalidEntry.exceptionCode
+      io.newException.precisePC := invalidEntry.vaddr
+      io.newException.csrTag := invalidEntry.csrTag
+      io.newException.rawExceptionValue2 := 0.U // TODO: 关于mtval的赋值，我们还不考虑
       if (DebugConfig.printException) {
         DebugUtils.Print("=== Exception ===")
         DebugUtils.Print(cf"Commit Exception ${invalidEntry.exceptionCode}")
         DebugUtils.Print("=== END ===")
       }
       commitValidsFinal(firstInvalidIdx) := true.B
-      io.redirect.bits := invalidEntry.exceptionCode
-      
-      assert(invalidEntry.exceptionCode === InsConfig.ExceptionCode.EC_BREAKPOINT)
+      // assert(invalidEntry.exceptionCode === InsConfig.ExceptionCode.EC_BREAKPOINT)
     }.elsewhen(commitJumpValid(firstInvalidIdx)) {
       // 分支预测失败
       commitValidsFinal(firstInvalidIdx) := true.B
@@ -248,7 +256,11 @@ class ReorderBuffer extends Module with InstructionConstants {
     }.elsewhen(afterCsrInvalidMask(firstInvalidIdx)) {
         // 提交执行csr指令
         DebugUtils.Print(cf"RobIdx CSR Instruction: PC = 0x${invalidEntry.vaddr}%x")
-        ctrlIO.conductCsr := true.B
+        io.newException.valid := true.B
+        io.newException.exceptionCode := 0.U
+        io.newException.precisePC := invalidEntry.vaddr
+        io.newException.rawExceptionValue2 := 0.U
+        io.newException.csrTag := invalidEntry.csrTag
     }
   }
 

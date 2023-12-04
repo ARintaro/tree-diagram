@@ -2,13 +2,24 @@ package core
 
 import chisel3._
 import chisel3.util._
-
+import chisel3.util.experimental.BoringUtils
 import CsrConstants._
+
+class TimerWithArbiter(inputNum: Int) extends Module {
+    val io = IO(new Bundle {
+        val masters = Vec(inputNum, new BusSlaveInterface)
+    })
+    
+    val timer = Module(new Timer)
+    val arbiter = Module(new BusArbiter(inputNum))
+    
+    io.masters <> arbiter.io.masters
+    arbiter.io.device <> timer.io.bus
+}
 
 class Timer extends Module {
     val io = IO(new Bundle {
         val bus = new BusSlaveInterface
-        val timerInterrupt = Output(Bool())
     })
     
     // create mtime & mtimecmp register
@@ -16,7 +27,8 @@ class Timer extends Module {
     val mtimecmp = RegInit(0.U(64.W))
 
     // core logic of time interrupt
-    io.timerInterrupt := (mtimecmp <= mtime)
+    val timerInterrupt = (mtimecmp <= mtime)
+    BoringUtils.addSource(timerInterrupt, "timerInterrupt")
     
     // The bus might send load or store instructions
     // Aligned Addr might be in a 8-byte range for mtime and mtimecmp

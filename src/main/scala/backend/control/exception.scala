@@ -44,9 +44,12 @@ class ExceptionUnit extends Module with InstructionConstants {
         val regWrite = new RegisterWriteRequest
 
         val redirect = Valid(UInt(BusConfig.ADDR_WIDTH))
-        val flush = Output(Bool())
 
         val updateMtip = Input(Bool())
+    })
+
+    val ctrlIO = IO(new Bundle {
+        val flushPipeline = Output(Bool())
     })
 
     /* ================ global privilege level ================ */
@@ -77,7 +80,7 @@ class ExceptionUnit extends Module with InstructionConstants {
     val intoException = !io.exc.csrTag && io.exc.valid
     val returnFromException = io.exc.csrTag && io.exc.valid && (io.reference.csrType === MRET || io.reference.csrType === SRET) && !intoException
     val conductCsrInst = io.exc.valid && io.exc.csrTag && !returnFromException && !intoException
-    io.flush := RegNext(io.exc.valid)
+    ctrlIO.flushPipeline := RegNext(io.exc.valid)
     val uimm32 = Cat(Fill(27, 0.U), io.reference.uimm)
 
     /* ================ Interrupt logic ================ */
@@ -104,6 +107,7 @@ class ExceptionUnit extends Module with InstructionConstants {
         stiOccur -> IT_S_TIMER_INT,
         ssiOccur -> IT_S_SOFT_INT
     ))
+    val generalizedExceptionCode = Mux(interruptOccur, interruptCode, io.exc.exceptionCode)
 
     /* ================check privilege ================ */
     val csrReadOnly = io.reference.csrAddr(11, 10) === 3.U
@@ -153,10 +157,10 @@ class ExceptionUnit extends Module with InstructionConstants {
         nextPC := Mux(delegException,
             Mux(stvec.mode.asBool,
             Cat(stvec.base, Fill(2, 0.U)),
-            Cat(stvec.base, Fill(2, 0.U)) + (io.exc.exceptionCode << 2.U)),
+            Cat(stvec.base, Fill(2, 0.U)) + (generalizedExceptionCode << 2.U)),
             Mux(mtvec.mode.asBool,
             Cat(mtvec.base, Fill(2, 0.U)),
-            Cat(mtvec.base, Fill(2, 0.U)) + (io.exc.exceptionCode << 2.U))
+            Cat(mtvec.base, Fill(2, 0.U)) + (generalizedExceptionCode << 2.U))
         )
         nextPrivilegeLevel := Mux(delegException,
             S_LEVEL,
@@ -181,6 +185,7 @@ class ExceptionUnit extends Module with InstructionConstants {
 
     /* ================ Write logic ================ */
     val useUimm = io.reference.csrType === CSRRWI || io.reference.csrType === CSRRSI || io.reference.csrType === CSRRCI
+    io.regRead.id := io.reference.prs
     val rawWriteData = Mux(useUimm, uimm32, io.regRead.value)
     val csrWriteData = MuxLookup(io.reference.csrType, 0.U(32.W))(Seq(
         CSRRW -> rawWriteData,
@@ -193,14 +198,14 @@ class ExceptionUnit extends Module with InstructionConstants {
     val exceptionValue = Mux(io.exc.exceptionCode === EC_ILLEGAL, io.rawExceptionValue1, io.exc.rawExceptionValue2)
     when(intoException){
         when(delegException){
-            scause := Cat(interruptOccur, Fill(27, 0.U), io.exc.exceptionCode(3, 0)) 
+            scause := Cat(interruptOccur, Fill(27, 0.U), generalizedExceptionCode(3, 0)) 
             stval_reg := exceptionValue
             status.spp := globalPrivilegeLevel
             status.spie := status.sie
             sepc_reg := Cat(io.exc.precisePC(31, 1), 0.U(1.W))
             status.sie := false.B
         }.otherwise{
-            mcause := Cat(interruptOccur, Fill(27, 0.U), io.exc.exceptionCode(3, 0))
+            mcause := Cat(interruptOccur, Fill(27, 0.U), generalizedExceptionCode(3, 0))
             mtval_reg := exceptionValue
             status.mpp := globalPrivilegeLevel
             status.mpie := status.mie
