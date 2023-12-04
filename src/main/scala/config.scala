@@ -5,7 +5,7 @@ import chisel3.util.log2Ceil
 
 object GenConfig {
   var verilator = false
-  var innerUartModel = true
+  var innerUartModel = false
 
 }
 

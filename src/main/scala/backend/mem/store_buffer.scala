@@ -336,8 +336,13 @@ class CompressedStoreBuffer(findPortNum : Int) extends Module {
   }
 
   when (ctrlIO.flush) {
-    // 由于flush信号延时一周期，可以保证这周期没有commit请求
+    // 由于flush信号延时一周期，可以保证这周期没有commit、并无视这周期的入队请求
     assert(!io.commits.map(_.valid).reduce(_ | _))
-    valid := commited
+    
+    when (deq) {
+      valid := commited >> 1
+    } .otherwise {
+      valid := commited
+    }
   }
 }

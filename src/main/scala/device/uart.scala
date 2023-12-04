@@ -49,10 +49,10 @@ class UartController extends Module {
         // Write
         when (io.bus.addr === BusConfig.UART_START.U) {
           val data = io.bus.dataWrite(7, 0)
-          DebugUtils.Print(cf"Uart Receive Data 0x$data%x, assci $data%c")
+          printf(cf"Uart Receive Data 0x$data%x, assci $data%c\n")
 
         } .elsewhen(io.bus.addr === (BusConfig.UART_START + 4).U) {
-          assert(false.B, "read only")
+          assert(io.bus.dataWrite === 0.U, "read only")
         } .otherwise {
           assert(false.B, "addr error")
         }
