@@ -219,6 +219,8 @@ class MemoryInstruction
   val memType = Bool() // true: store, false: load
   val memLen = UInt(MEM_LEN_WIDTH)
 
+  val extType = Bool()
+
   override def checkReady(busy: UInt): Bool = {
     return Mux(memType, !busy(prs1) && !busy(prd_or_prs2), !busy(prs1))
   }

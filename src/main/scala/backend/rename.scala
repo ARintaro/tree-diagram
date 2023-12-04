@@ -342,6 +342,7 @@ class RenameUnit extends Module
       ins.iqtType := io.in(i).iqtType
       ins.memLen := io.in(i).memLen
       ins.memType := io.in(i).memType
+      ins.extType := io.in(i).extType
 
       ins.prs1 := renameTableIO.finds(i)(0).preg
       ins.prs2 := renameTableIO.finds(i)(1).preg

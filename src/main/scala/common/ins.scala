@@ -184,6 +184,8 @@ class DecodedInstruction extends Bundle with InstructionConstants {
   // 在提交时刷新流水线
   val flush = Bool()
 
+  val extType = Bool()
+
   def imm = {
     MuxLookup(immType, 0.U)( 
       Seq(
@@ -230,6 +232,8 @@ class PipelineInstruction extends Bundle with InstructionConstants {
   // 在提交时刷新流水线
   val flush = Bool()
 
+  val extType = Bool()
+
   if (DebugConfig.debug) {
     val debugInst = UInt(InsConfig.INS_WIDTH)
     val debugVaddr = UInt(BusConfig.ADDR_WIDTH)
@@ -258,6 +262,7 @@ class PipelineInstruction extends Bundle with InstructionConstants {
     inst.imm := imm
     inst.memType := memType
     inst.memLen := memLen
+    inst.extType := extType
     inst
   }
 
