@@ -206,8 +206,8 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
         // TODO: 搜索Dcache结果
         DebugUtils.Print(cf" [mem] load, addr: 0x${f3_word_paddr_wire}%x, ack ${io.bus.ack}, data 0x${io.bus.dataRead}%x")
 
-        // 如果是MMIO，必须storeBuffer所有内容已经写回后再开始load
-        io.bus.stb := !io.bus.mmio || io.robHead === f2_robIdx
+        // 如果是MMIO，必须storeBuffer所有内容已经写回、并且确定可以提交后再开始load
+        io.bus.stb := !io.bus.mmio || (io.robHead === f2_robIdx && io.findStore.empty)
         io.bus.dataBytesSelect := "b1111".U
         io.bus.dataMode := false.B
         io.bus.dataWrite := DontCare

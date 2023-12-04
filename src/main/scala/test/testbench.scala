@@ -9,6 +9,7 @@ class TestBench extends Module {
   val io = IO(new Bundle {
     val uart_start = Input(Bool())
     val uart_data = Input(UInt(8.W))
+    val uart_busy = Output(Bool())
   })
 
   val top = Module(new TreeDiagram)
@@ -27,9 +28,11 @@ class TestBench extends Module {
 
     uart.io.start := io.uart_start
     uart.io.data := io.uart_data
+    io.uart_busy := uart.io.busy
 
   } else {
     top.io.uart.rxd := DontCare
+    io.uart_busy := DontCare
   }
 
   

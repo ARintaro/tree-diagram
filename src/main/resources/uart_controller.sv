@@ -3,7 +3,7 @@ module UartControllerBlackBox #(
     parameter ADDR_WIDTH = 32,
     parameter DATA_WIDTH = 32,
 
-    parameter CLK_FREQ = 90_000_000,
+    parameter CLK_FREQ = 80_000_000,
     parameter BAUD = 115200
 ) (
     // clk and reset
@@ -76,7 +76,7 @@ module UartControllerBlackBox #(
       end
 
       if (rxd_data_ready) begin
-        $fwrite(32'h80000002, "[%0t]: uart data ready!! 0x%02x\n", $time, rxd_data);
+        // $fwrite(32'h80000002, "[%0t]: uart data ready!! 0x%02x\n", $time, rxd_data);
       end
 
   end
@@ -109,6 +109,7 @@ module UartControllerBlackBox #(
     end else if(wb_stb_i && !wb_we_i) begin
       case (wb_adr_i[7:0])
         REG_DATA: begin
+          $fwrite(32'h80000002, "[%0t]: uart data readed 0x%02x\n", $time, rxd_data);
           if (wb_sel_i[0]) wb_dat_o[7:0] <= rxd_data;
           if (wb_sel_i[1]) wb_dat_o[15:8] <= rxd_data;
           if (wb_sel_i[2]) wb_dat_o[23:16] <= rxd_data;

@@ -1,13 +1,14 @@
 
 module UartModel #(
     parameter BAUD = 115200,
-    parameter CLK_FREQ = 90_000_000
+    parameter CLK_FREQ = 80_000_000
 ) (
     input  wire clk,
     input  wire rxd,
     output wire txd,
     input wire start,
-    input wire[7:0] data
+    input wire[7:0] data,
+    output wire busy
 );
 
   // TXD Side
@@ -26,6 +27,8 @@ module UartModel #(
       .TxD_data (txd_data),
       .TxD_busy (txd_busy)
   );
+
+  assign busy = txd_busy;
 
   always @(posedge clk) begin
     txd_start <= start;
