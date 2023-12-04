@@ -26,7 +26,7 @@ module UartControllerBlackBox #(
 );
 
   localparam REG_DATA = 8'h00;
-  localparam REG_STATUS = 8'h05;
+  localparam REG_STATUS = 8'h04;
 
   // uart transmitter
   logic txd_start;
@@ -84,6 +84,7 @@ module UartControllerBlackBox #(
       case (wb_adr_i[7:0])
         REG_DATA: begin
           if(wb_sel_i[0]) begin
+            $fwrite(32'h80000002, "[%0t]: uart writed data!! 0x%02x\n", $time, wb_dat_i[7:0]);
             txd_data  <= wb_dat_i[7:0];
             txd_start <= 1;
           end

@@ -8,6 +8,7 @@ object MakeVivadoVerilog {
   def main(args: Array[String]): Unit = {
     // circt.stage.ChiselStage.emitSystemVerilogFile(new Test, Array("--target-dir", args(0)))
     GenConfig.verilator = false
+    GenConfig.innerUartModel = false
 
     circt.stage.ChiselStage.emitSystemVerilogFile(new TreeDiagram, Array("--target-dir",  args(0)))
 

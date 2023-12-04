@@ -37,6 +37,8 @@ class StoreFindRequest extends Bundle {
   val valid = Input(Bool())
   val value = Input(UInt(BusConfig.DATA_WIDTH))
   val bytes = Input(UInt(4.W))
+
+  val empty = Input(Bool())
 }
 
 // mmio接到其他buffer里
@@ -252,6 +254,7 @@ class CompressedStoreBuffer(findPortNum : Int) extends Module {
     busIO.dataWrite := stores(0).value
     busIO.dataBytesSelect := stores(0).bytes
     busIO.addr := stores(0).paddr
+
     when (busIO.ack) {
       busBusy := false.B
       deq := true.B
@@ -313,6 +316,7 @@ class CompressedStoreBuffer(findPortNum : Int) extends Module {
     find.valid := findHit
     find.value := stores(findHitIdx).value
     find.bytes := stores(findHitIdx).bytes
+    find.empty := !valid(0)
   }
 
   if (DebugConfig.printStoreBuffer) {

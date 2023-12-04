@@ -17,6 +17,7 @@ class TestBench extends Module {
   if (!GenConfig.innerUartModel) {
     val uart = Module(new UartModel)
     uart.io.rxd := top.io.uart.txd
+    uart.io.clk := clock
     top.io.uart.rxd := uart.io.txd
   } else {
     top.io.uart.rxd := DontCare

@@ -1,31 +1,13 @@
-
-module clock (
-    output reg clk_50M,
-    output reg clk_11M0592
-);
-
-initial begin
-    clk_50M = 0;
-    clk_11M0592 = 0;
-end
-
-always #(90422/2) clk_11M0592 = ~clk_11M0592;
-always #(20000/2) clk_50M = ~clk_50M;
-
-endmodule
+`timescale 1ns / 1ps
 
 module UartModel #(
-    parameter BAUD = 115200
+    parameter BAUD = 115200,
+    parameter CLK_FREQ = 100_000_000
 ) (
+    input  wire clk,
     input  wire rxd,
     output wire txd
 );
-
-  wire uart_clk;
-  clock clock_gen (
-      .clk_50M    (),
-      .clk_11M0592(uart_clk)
-  );
 
   // TXD Side
   reg txd_start = 0;
@@ -33,10 +15,10 @@ module UartModel #(
   wire txd_busy;
 
   async_transmitter #(
-      .ClkFrequency(11_059_200),
+      .ClkFrequency(CLK_FREQ),
       .Baud        (BAUD)
   ) uart_tx (
-      .clk(uart_clk),
+      .clk(clk),
       .TxD(txd),
 
       .TxD_start(txd_start),
@@ -47,10 +29,10 @@ module UartModel #(
   task pc_send_byte;
     input [7:0] arg;
     begin
-      @(posedge uart_clk);
+      @(posedge clk);
       txd_data  = arg;
       txd_start = 1;
-      @(posedge uart_clk);
+      @(posedge clk);
       txd_start = 0;
       @(txd_busy == 0);
     end
@@ -62,10 +44,10 @@ module UartModel #(
   wire [7:0] rxd_data;
 
   async_receiver #(
-      .ClkFrequency(11_059_200),
+      .ClkFrequency(CLK_FREQ),
       .Baud        (BAUD)
   ) uart_rx (
-      .clk(uart_clk),
+      .clk(clk),
       .RxD(rxd),
 
       .RxD_data_ready(rxd_data_ready),
@@ -73,18 +55,19 @@ module UartModel #(
       .RxD_data      (rxd_data)
   );
 
+
   always begin
     wait (rxd_data_ready == 1);
-    $write("[%0t]: uart received 0x%02x", $time, rxd_data);
+    $fwrite(32'h80000002, "[%0t]: uart received 0x%02x", $time, rxd_data);
     
     if (rxd_data >= 8'h21 && rxd_data <= 8'h7E)
-      $write(", ASCII: %c\n", rxd_data);
+      $fwrite(32'h80000002, ", ASCII: %c\n", rxd_data);
     else
-      $write("\n");
+      $fwrite(32'h80000002, "\n");
     
-    @(posedge uart_clk);
+    @(posedge clk);
     rxd_clear = 1;
-    @(posedge uart_clk);
+    @(posedge clk);
     rxd_clear = 0;
 
     wait(rxd_data_ready == 0);

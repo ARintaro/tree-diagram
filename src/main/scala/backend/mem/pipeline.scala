@@ -82,6 +82,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   val f2_data = Reg(UInt(32.W))
   val f2_robIdx = Reg(UInt(BackendConfig.robIdxWidth))
   val f2_memType = Reg(Bool())
+  val f2_memLen = Reg(UInt(MEM_LEN_WIDTH))
   val f2_bytes = Reg(UInt(4.W))
   val f2_prd = Reg(UInt(BackendConfig.pregIdxWidth))
   val f2_valid = RegInit(false.B)
@@ -103,6 +104,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
     f2_robIdx := f1_ins.robIdx
     f2_memType := f1_ins.memType
     f2_bytes := f1_ins.getBytes(f2_vaddr_wire)
+    f2_memLen := f1_ins.memLen
 
     f2_valid := f1_valid
     f2_prd := f1_ins.prd_or_prs2
@@ -128,11 +130,14 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   val f3_valid = RegInit(false.B)
   val f3_storeType = RegInit(0.U(STORE_TYPE_WIDTH))
   val f3_storeBufferIdx = RegInit(0.U(BackendConfig.storeBufferIdxWidth))
+  val f3_addrLow2 = RegInit(0.U(2.W))
+  val f3_memLen = RegInit(0.U(2.W))
 
   val f3_bus_data = RegInit(false.B)
 
   // TODO : 从TLB接受地址
   val f3_word_paddr_wire = Cat(f2_vaddr(31, 2), 0.U(2.W))
+  f3_addrLow2 := f2_vaddr(1, 0)
 
   DebugUtils.Print(cf"[mem] f3_word_paddr_wire 0x$f3_word_paddr_wire%x")
 
@@ -153,6 +158,8 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   f3_prd := f2_prd
   f3_writeRd := !f2_memType
   f3_storeType := f3_store_type_wire
+  f3_memLen := f2_memLen
+  
 
   when(f2_valid) {
     io.bus.addr := f3_word_paddr_wire
@@ -193,12 +200,13 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 
       }.otherwise {
         // 在 Buffer 中找不到数据，需要自行 load
-
+        
         // TODO: 搜索Dcache结果
-        DebugUtils.Print(cf" [mem] load, addr: 0x${f3_word_paddr_wire}%x, ack ${io.bus.ack}")
+        DebugUtils.Print(cf" [mem] load, addr: 0x${f3_word_paddr_wire}%x, ack ${io.bus.ack}, data 0x${io.bus.dataRead}%x")
 
-        io.bus.stb := true.B
-        io.bus.dataBytesSelect := f2_bytes
+        // 如果是MMIO，必须storeBuffer所有内容已经写回后再开始load
+        io.bus.stb := !io.bus.mmio || io.findStore.empty
+        io.bus.dataBytesSelect := "b1111".U
         io.bus.dataMode := false.B
         io.bus.dataWrite := DontCare
 
@@ -223,7 +231,16 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 
   val f4_write_rd_wire = WireInit(f3_writeRd && f3_valid)
 
-  val f4_data_wire = WireInit(Mux(f3_bus_data, io.bus.dataRead, f3_data))
+  val f4_raw_data_wire = Mux(f3_bus_data, io.bus.dataRead, f3_data) >> (f3_addrLow2 << 3)
+  val f4_data_wire = WireInit(
+    MuxLookup(f3_memLen, 0.U)(
+      Seq(
+        MEM_BYTE -> f4_raw_data_wire(7, 0),
+        MEM_HALF -> f4_raw_data_wire(15, 0),
+        MEM_WORD -> f4_raw_data_wire
+      )
+    )
+  )
 
   BackendUtils.BroadcastSideway(index, f3_prd, f4_data_wire, f4_write_rd_wire)
 

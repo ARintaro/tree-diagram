@@ -61,7 +61,7 @@ class UartController extends Module {
         when (io.bus.addr === BusConfig.UART_START.U) {
           assert(false.B, "unimpl recv data")
         } .elsewhen(io.bus.addr === (BusConfig.UART_START + 4).U) {
-          io.bus.dataRead := 0x00000020.U
+          io.bus.dataRead := 0x00002000.U
         } .otherwise {
           DebugUtils.Print(cf"ERROR: Uart Addr Error : 0x${io.bus.addr}%x")
           assert(false.B, "uart addr error")
@@ -85,17 +85,24 @@ class UartController extends Module {
     box.io.uart_rxd_i := rxd
     txd := box.io.uart_txd_o
 
+    when(io.bus.stb && io.bus.dataMode) {
+      DebugUtils.Print(cf"Uart Bus Write ${io.bus.dataWrite}")
+    }
+
+    val busy = RegInit(false.B)
+
     box.io.clk_i := clock
     box.io.rst_i := reset
-    box.io.wb_cyc_i := io.bus.stb
-    box.io.wb_stb_i := io.bus.stb
+    box.io.wb_cyc_i := true.B
     box.io.wb_adr_i := io.bus.addr
     box.io.wb_dat_i := io.bus.dataWrite
     box.io.wb_sel_i := io.bus.dataBytesSelect
     box.io.wb_we_i := io.bus.dataMode
-    io.bus.ack := box.io.wb_ack_o
     io.bus.dataRead := box.io.wb_dat_o
     io.bus.mmio := true.B
+
+    box.io.wb_stb_i := io.bus.stb && !io.bus.ack
+    io.bus.ack := box.io.wb_ack_o
   }
 }
 
