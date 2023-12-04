@@ -74,6 +74,11 @@ module UartControllerBlackBox #(
       end else begin
         wb_ack_o <= wb_stb_i;
       end
+
+      if (rxd_data_ready) begin
+        $fwrite(32'h80000002, "[%0t]: uart data ready!! 0x%02x\n", $time, rxd_data);
+      end
+
   end
 
   // write logic

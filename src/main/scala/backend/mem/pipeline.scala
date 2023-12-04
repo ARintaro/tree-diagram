@@ -13,6 +13,8 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
     val newStore = new NewStoreRequest // 连接storeBuffer
     val findStore = new StoreFindRequest // 连接storeBuffer
     val bus = BusMasterInterface()
+
+    val robHead = Input(UInt(BackendConfig.robIdxWidth))
   })
 
   val ctrlIO = IO(new Bundle {
@@ -205,7 +207,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
         DebugUtils.Print(cf" [mem] load, addr: 0x${f3_word_paddr_wire}%x, ack ${io.bus.ack}, data 0x${io.bus.dataRead}%x")
 
         // 如果是MMIO，必须storeBuffer所有内容已经写回后再开始load
-        io.bus.stb := !io.bus.mmio || io.findStore.empty
+        io.bus.stb := !io.bus.mmio || io.robHead === f2_robIdx
         io.bus.dataBytesSelect := "b1111".U
         io.bus.dataMode := false.B
         io.bus.dataWrite := DontCare

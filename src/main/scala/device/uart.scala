@@ -89,8 +89,6 @@ class UartController extends Module {
       DebugUtils.Print(cf"Uart Bus Write ${io.bus.dataWrite}")
     }
 
-    val busy = RegInit(false.B)
-
     box.io.clk_i := clock
     box.io.rst_i := reset
     box.io.wb_cyc_i := true.B

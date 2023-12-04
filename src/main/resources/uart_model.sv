@@ -1,12 +1,13 @@
-`timescale 1ns / 1ps
 
 module UartModel #(
     parameter BAUD = 115200,
-    parameter CLK_FREQ = 100_000_000
+    parameter CLK_FREQ = 90_000_000
 ) (
     input  wire clk,
     input  wire rxd,
-    output wire txd
+    output wire txd,
+    input wire start,
+    input wire[7:0] data
 );
 
   // TXD Side
@@ -25,6 +26,11 @@ module UartModel #(
       .TxD_data (txd_data),
       .TxD_busy (txd_busy)
   );
+
+  always @(posedge clk) begin
+    txd_start <= start;
+    txd_data <= data;
+  end
 
   task pc_send_byte;
     input [7:0] arg;

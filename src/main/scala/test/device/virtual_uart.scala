@@ -8,6 +8,8 @@ class UartModel extends BlackBox with HasBlackBoxResource {
     val clk = Input(Clock())
     val rxd = Input(Bool())
     val txd = Output(Bool())
+    val start = Input(Bool())
+    val data = Input(UInt(8.W))
   })
 
   addResource("uart_model.sv")

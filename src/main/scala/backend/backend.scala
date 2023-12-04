@@ -112,6 +112,7 @@ class Backend extends Module {
   memPipe.io.findStore <> storeBuffer.io.finds(0)
   memPipe.io.newStore <> storeBuffer.io.news
   memPipe.io.bus <> io.devBus(0)
+  memPipe.io.robHead := rob.io.head
 
   // ROB
   rob.commitsIO <> renameTable.io.commits
