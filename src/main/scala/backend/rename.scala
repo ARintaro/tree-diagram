@@ -348,6 +348,13 @@ class RenameUnit extends Module
       ins.prs2 := renameTableIO.finds(i)(1).preg
       ins.prd := renameTableIO.news(i).pregIdx
 
+      ins.csrTag := io.in(i).csrTag
+      ins.csrType := io.in(i).csrType
+      ins.csrUimm := io.in(i).rs1
+      ins.csrAddr := io.in(i).csr
+      ins.writeCsrEn := io.in(i).writeCsrEn
+      ins.readCsrEn := io.in(i).readCsrEn
+
       if (DebugConfig.printPipeIns) {
         when (ins.valid) {
           DebugUtils.Print(cf"PipeIns RobIdx : ${ins.robIdx} Sel1:${ins.selOP1} prs1:${ins.prs1} Sel2:${ins.selOP2} prs2:${ins.prs2}")

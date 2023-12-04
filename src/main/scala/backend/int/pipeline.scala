@@ -55,6 +55,7 @@ class IntPipeline(index: Int) extends Module
   val f2_robIddx = Reg(UInt(BackendConfig.robIdxWidth))
   val f2_rd = Reg(UInt(BackendConfig.pregIdxWidth))
   val f2_valid = RegInit(false.B)
+  val f2_csrTag = RegInit(false.B)
   
 
   val f2_sideway = BackendUtils.SearchSideway(f1_ins.prs1, f1_ins.prs2)
@@ -97,6 +98,7 @@ class IntPipeline(index: Int) extends Module
   f2_writeRd := f1_ins.writeRd
   f2_robIddx := f1_ins.robIdx
   f2_rd := f1_ins.prd
+  f2_csrTag := f1_ins.csrTag
 
   // F3 写回阶段
   
@@ -114,6 +116,8 @@ class IntPipeline(index: Int) extends Module
   io.robComplete.jumpTarget := f2_jumpTarget
   io.robComplete.exception := false.B
   io.robComplete.exceptionCode := 0.U
+  io.robComplete.csrTag := f2_csrTag
+
   if(DebugConfig.printWriteBack) {
     when (io.regWrite.valid) {
       DebugUtils.Print(cf"intPipe${index} writeback, rd: ${f2_rd}, value: ${f2_aluResult}")

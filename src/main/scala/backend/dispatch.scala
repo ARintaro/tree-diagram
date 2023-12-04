@@ -2,6 +2,7 @@ package core
 
 import chisel3._
 import chisel3.util._
+import CsrConstants._
 
 class DispatchUnit extends Module with InstructionConstants {
   val io = IO(new Bundle {
@@ -12,6 +13,8 @@ class DispatchUnit extends Module with InstructionConstants {
     val ints = Vec(BackendConfig.intPipelineNum, Decoupled(new IntInstruction))
     // 访存流水线，不支持乱序访存，一条流水线多个入队端口
     val mem = Vec(FrontendConfig.decoderNum, Decoupled(new MemoryInstruction))
+
+    val csr = Output(new CsrInstruction) // 连接ExceptionUnit
   })
 
   val intAllocBegin = RegInit(0.U(log2Ceil(BackendConfig.intPipelineNum).W))
@@ -42,6 +45,17 @@ class DispatchUnit extends Module with InstructionConstants {
     case (x, y) => {
       x := DontCare
       x.valid := y && succ
+    }
+  }
+
+  val csrInstructionBuffer = RegInit(0.U.asTypeOf(new CsrInstruction))
+  io.csr := csrInstructionBuffer
+  
+  val isCsr = VecInit(io.in.map(x => x.valid && x.csrTag)).asUInt
+  val firstCsrIdx = PriorityEncoder(isCsr)
+  when(firstCsrIdx =/= 0.U) {
+    when(csrInstructionBuffer.csrType =/= CSRNONE) {
+      csrInstructionBuffer := io.in(firstCsrIdx - 1.U).GetCsrInstruction()
     }
   }
 

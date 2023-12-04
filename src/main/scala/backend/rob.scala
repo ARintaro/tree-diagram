@@ -27,6 +27,7 @@ class RobEntry extends Bundle with InstructionConstants {
   val storeBufferIdx = UInt(BackendConfig.storeBufferIdxWidth)
   val storeType = UInt(STORE_TYPE_WIDTH)
 
+  val csrTag = Bool()
 
 }
 
@@ -58,6 +59,7 @@ class RobReadPcRequest extends Bundle with InstructionConstants {
 }
 
 class RobCompleteRequest extends Bundle with InstructionConstants{
+
   val valid = Output(Bool())
   val robIdx = Output(UInt(BackendConfig.robIdxWidth))
   val jump = Output(Bool())
@@ -66,6 +68,8 @@ class RobCompleteRequest extends Bundle with InstructionConstants{
   val exceptionCode = Output(UInt(InsConfig.EXCEPTION_WIDTH))
   val storeBufferIdx = Output(UInt(BackendConfig.storeBufferIdxWidth))
   val storeType = Output(UInt(STORE_TYPE_WIDTH))
+  val csrTag = Output(Bool())
+
 }
 
 class ReorderBuffer extends Module with InstructionConstants {
@@ -90,6 +94,7 @@ class ReorderBuffer extends Module with InstructionConstants {
   
   val ctrlIO = IO(new Bundle {
     val flushPipeline = Output(Bool())
+    val conductCsr = Output(Bool())
   })
 
   dontTouch(io.uncertern)
@@ -136,6 +141,7 @@ class ReorderBuffer extends Module with InstructionConstants {
       entry.exceptionCode := newIO.news(i).exceptionCode
       entry.storeBufferIdx := DontCare
       entry.storeType := DontCare
+      entry.csrTag := false.B
     
       entries(idx) := entry
     }
@@ -163,6 +169,7 @@ class ReorderBuffer extends Module with InstructionConstants {
       entry.exception := entry.exception | complete.exception
       entry.storeBufferIdx := complete.storeBufferIdx
       entry.storeType := complete.storeType
+      entry.csrTag := complete.csrTag
       when(complete.exception) {
         entry.exceptionCode := complete.exceptionCode
       }
@@ -184,11 +191,14 @@ class ReorderBuffer extends Module with InstructionConstants {
   val commitJumpValid =
     VecInit(commitEntry.map(x => !x.jumpTargetError && x.realJump === x.predictJump))
 
+  val afterCsrInvalidMask = VecInit(commitEntry.map(_.csrTag).scan(false.B)(_ || _).init)
+
   val commitValidsTwo = commitValidsOne
     .zip(commitJumpValid)
     .zip(commitEntry)
-    .map { case ((x, y), z) =>
-      x && y && !z.exception
+    .zip(afterCsrInvalidMask)
+    .map { case (((x, y), z), w) =>
+      x && y && !z.exception && !w
     }
     .scan(true.B)(_ && _)
     .tail
@@ -217,7 +227,7 @@ class ReorderBuffer extends Module with InstructionConstants {
       io.redirect.bits := invalidEntry.exceptionCode
       
       assert(invalidEntry.exceptionCode === InsConfig.ExceptionCode.EC_BREAKPOINT)
-    }.otherwise {
+    }.elsewhen(commitJumpValid(firstInvalidIdx)) {
       // 分支预测失败
       commitValidsFinal(firstInvalidIdx) := true.B
       when(invalidEntry.jumpTargetError) {
@@ -235,6 +245,10 @@ class ReorderBuffer extends Module with InstructionConstants {
           0x10000002L.U
         )
       }
+    }.elsewhen(afterCsrInvalidMask(firstInvalidIdx)) {
+        // 提交执行csr指令
+        DebugUtils.Print(cf"RobIdx CSR Instruction: PC = 0x${invalidEntry.vaddr}%x")
+        ctrlIO.conductCsr := true.B
     }
   }
 

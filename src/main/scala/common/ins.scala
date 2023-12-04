@@ -2,6 +2,7 @@ package core
 
 import chisel3._
 import chisel3.util._
+import CsrConstants._
 
 // RV32I指令集
 object RV32IPattern {
@@ -45,6 +46,14 @@ object RV32IPattern {
   val fencePattern = BitPat("b?????????????????000?????0001111")
   val ecallPattern = BitPat("b00000000000000000000000001110011")
   val ebreakPattern = BitPat("b00000000000100000000000001110011")
+  val csrrwPattern = BitPat("b?????????????????001?????1110011")
+  val csrrsPattern = BitPat("b?????????????????010?????1110011")
+  val csrrcPattern = BitPat("b?????????????????011?????1110011")
+  val csrrwiPattern = BitPat("b?????????????????101?????1110011")
+  val csrrsiPattern = BitPat("b?????????????????110?????1110011")
+  val csrrciPattern = BitPat("b?????????????????111?????1110011")
+  val mretPattern = BitPat("b00110000001000000000000001110011")
+  val sretPattern = BitPat("b00010000001000000000000001110011")
 }
 
 // 取指单元拉取出的指令
@@ -140,7 +149,7 @@ trait InstructionConstants {
 
   // CSR指令类型
   val CSR_WIDTH = 4.W
-  def CSRRW = 0.U(CSR_WIDTH)
+  def CSRNONE = 0.U(CSR_WIDTH)
   def CSRRS = 1.U(CSR_WIDTH)
   def CSRRC = 2.U(CSR_WIDTH)
   def CSRRWI = 3.U(CSR_WIDTH)
@@ -150,6 +159,7 @@ trait InstructionConstants {
   def SRET = 7.U(CSR_WIDTH)
   def ECALL = 8.U(CSR_WIDTH)
   def EBREAK = 9.U(CSR_WIDTH)
+  def CSRRW = 10.U(CSR_WIDTH)
 }
 
 // 解码单元解码出的指令
@@ -185,6 +195,11 @@ class DecodedInstruction extends Bundle with InstructionConstants {
   val flush = Bool()
 
   val extType = Bool()
+  // csr related instructions
+  val csrTag = Bool()
+  val csrType = UInt(CSR_WIDTH)
+  val writeCsrEn = Bool()
+  val readCsrEn = Bool()
 
   def imm = {
     MuxLookup(immType, 0.U)( 
@@ -200,7 +215,9 @@ class DecodedInstruction extends Bundle with InstructionConstants {
 
   def rs1 = inst(19, 15)
   def rs2 = inst(24, 20)
-  def rd = inst(11, 7)
+  def rd  = inst(11, 7)
+  def csr = inst(31, 20)
+
 }
 
 // 重命名后在流水线中传递的指令
@@ -233,6 +250,13 @@ class PipelineInstruction extends Bundle with InstructionConstants {
   val flush = Bool()
 
   val extType = Bool()
+  // csr related instructions
+  val csrTag = Bool()
+  val csrType = UInt(CSR_WIDTH)
+  val csrAddr = UInt(CSR_ADDR_WIDTH)
+  val csrUimm = UInt(5.W)
+  val writeCsrEn = Bool()
+  val readCsrEn = Bool()
 
   if (DebugConfig.debug) {
     val debugInst = UInt(InsConfig.INS_WIDTH)
@@ -251,6 +275,7 @@ class PipelineInstruction extends Bundle with InstructionConstants {
     inst.prs1 := prs1
     inst.prs2 := prs2
     inst.prd := prd
+    inst.csrTag := csrTag
     inst
   }
 
@@ -263,6 +288,18 @@ class PipelineInstruction extends Bundle with InstructionConstants {
     inst.memType := memType
     inst.memLen := memLen
     inst.extType := extType
+    inst
+  }
+
+  def GetCsrInstruction(): CsrInstruction = {
+    val inst = Wire(new CsrInstruction)
+    inst.csrAddr := csrAddr
+    inst.csrType := csrType
+    inst.uimm := csrUimm
+    inst.prd := prd
+    inst.prs := prs1
+    inst.writeCsrEn := writeCsrEn
+    inst.readCsrEn := readCsrEn
     inst
   }
 
