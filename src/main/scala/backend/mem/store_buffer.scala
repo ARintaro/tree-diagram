@@ -286,6 +286,12 @@ class CompressedStoreBuffer(findPortNum : Int) extends Module {
   when (enq) {
     val enqIdx = Mux(deq, firstEmptyIdx - 1.U, firstEmptyIdx)
     stores(enqIdx) := io.news.store
+
+    if (DebugConfig.printStoreBuffer) {
+      DebugUtils.Print(
+        cf"store buffer enq, paddr: 0x${io.news.store.paddr}%x, 0xvalue: ${io.news.store.value}%x, bytes: ${io.news.store.bytes}"
+      )
+    }
   }
 
   when(!enq && deq) {
@@ -309,6 +315,21 @@ class CompressedStoreBuffer(findPortNum : Int) extends Module {
     find.bytes := stores(findHitIdx).bytes
   }
 
+  if (DebugConfig.printStoreBuffer) {
+    DebugUtils.Print("==== Store Buffer BEGIN==== ")
+
+    for (i <- 0 until BackendConfig.storeBufferSize) {
+      when(valid(i)) {
+        DebugUtils.Print(
+          cf"idx: ${i}, commit: ${commited(i)} paddr: 0x${stores(i).paddr}%x, value: 0x${stores(
+              i
+            ).value}%x, bytes: ${Binary(stores(i).bytes)}"
+        )
+      }
+    }
+    DebugUtils.Print("==== Store Buffer END ==== ")
+
+  }
 
   when (ctrlIO.flush) {
     // 由于flush信号延时一周期，可以保证这周期没有commit请求

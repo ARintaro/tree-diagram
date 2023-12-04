@@ -70,10 +70,15 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
     )
     f1_valid := f0_valid
     f1_ins := f0_ins
+
+    when (!f0_done) {
+      f0_valid := false.B
+    }
+
   }
 
   // F2
-  val f2_word_vaddr = Reg(UInt(BusConfig.ADDR_WIDTH))
+  val f2_vaddr = Reg(UInt(BusConfig.ADDR_WIDTH))
   val f2_data = Reg(UInt(32.W))
   val f2_robIdx = Reg(UInt(BackendConfig.robIdxWidth))
   val f2_memType = Reg(Bool())
@@ -82,25 +87,36 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   val f2_valid = RegInit(false.B)
 
   val f2_sideway = BackendUtils.SearchSideway(f1_ins.prs1, f1_ins.prd_or_prs2)
-  val f2_vaddr_wire =
-    Mux(f2_sideway(0).valid, f2_sideway(0).value, f1_src1) + f1_ins.imm
-  val f2_data_wire = Mux(f2_sideway(1).valid, f2_sideway(1).value, f1_src2)
+  val f2_src1_wire = Mux(f2_sideway(0).valid, f2_sideway(0).value, f1_src1)
+  val f2_src2_wire = Mux(f2_sideway(1).valid, f2_sideway(1).value, f1_src2)
+
+  val f2_vaddr_wire = f2_src1_wire + f1_ins.imm
+  val f2_data_wire = f2_src2_wire
+
   val f2_done = !stall || !f2_valid
 
-  // TODO: 使用，访问 TLB，Dcache
+  // TODO: 使用f2_word_vaddr_wire访问 TLB，Dcache
 
   when(f2_done) {
-    f2_word_vaddr := Cat(f2_vaddr_wire(31, 2), 0.U(2.W))
+    f2_vaddr := f2_vaddr_wire
     f2_data := f1_ins.getValue(f2_vaddr_wire, f2_data_wire)
     f2_robIdx := f1_ins.robIdx
     f2_memType := f1_ins.memType
     f2_bytes := f1_ins.getBytes(f2_vaddr_wire)
 
-    
-
     f2_valid := f1_valid
     f2_prd := f1_ins.prd_or_prs2
+
+    when (!f1_done) {
+      f1_valid := false.B
+    }
+  } 
+
+  when (!f1_done) {
+    f1_src1 := f2_src1_wire
+    f1_src2 := f2_src2_wire
   }
+
 
   // F3
 
@@ -116,7 +132,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   val f3_bus_data = RegInit(false.B)
 
   // TODO : 从TLB接受地址
-  val f3_word_paddr_wire = f2_word_vaddr
+  val f3_word_paddr_wire = Cat(f2_vaddr(31, 2), 0.U(2.W))
 
   DebugUtils.Print(cf"[mem] f3_word_paddr_wire 0x$f3_word_paddr_wire%x")
 
