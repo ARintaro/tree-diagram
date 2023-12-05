@@ -10,32 +10,35 @@ object GenConfig {
 }
 
 object DebugConfig {
-  var debug = false
+  var debug = true
+  // 1520984
+  var printBegin = 1541800.U
+  var printEnd = 1542000.U
 
-  var printRenameTable = true
-  var printRenameUnitIn = true
+  var printRenameTable = false
+  var printRenameUnitIn = false
   
-  var printRenameAlloc = true
-  var printRenameFree = true
+  var printRenameAlloc = false
+  var printRenameFree = false
 
-  var printRenameNew = true
-  var printDispatch = true
-  var printWriteBack = true
-  var printIssue = true
-  var printPreg = true
-  var printLreg = true
+  var printRenameNew = false
+  var printDispatch = false
+  var printWriteBack = false
+  var printIssue = false
+  var printPreg = false
+  var printLreg = false
   var printFetch = true
   var printRedirect = true
   var printFlush = true
 
   val printRob = true
   val printRobNew = true
-  val printPipeIns = true
-  val printStoreBuffer = true
+  val printPipeIns = false
+  val printStoreBuffer = false
 
-  val printException = true
+  val printException = false
 
-  var printBusy = true
+  var printBusy = false
 }
 
 object SramConfig {

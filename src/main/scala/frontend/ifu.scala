@@ -92,7 +92,8 @@ class InstructionFetchUnit extends Module {
   val fetchValid =
     jalValid.zip(icache.f2_io.valid).zip(fetchQueue.io.enq.map(_.ready)).map {
       case ((x, y), z) => x && y && z
-    }
+    }.scanLeft(true.B)(_ && _).tail
+
   val anyValid = fetchValid.reduce(_ || _)
   val lastValidIdx = (fetchValid.length - 1).U - PriorityEncoder(fetchValid.reverse)
 

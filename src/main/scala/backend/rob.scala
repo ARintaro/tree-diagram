@@ -83,6 +83,7 @@ class ReorderBuffer extends Module with InstructionConstants {
     val commitsStoreBuffer = Vec(BackendConfig.maxCommitsNum, new CommitStoreRequest)
 
     val head = Output(UInt(BackendConfig.robIdxWidth))
+    val empty = Output(Bool())
   })
   
   val ctrlIO = IO(new Bundle {
@@ -97,6 +98,7 @@ class ReorderBuffer extends Module with InstructionConstants {
   val tail = RegInit(0.U(BackendConfig.robIdxWidth))
 
   io.head := head
+  io.empty := head === tail
 
   val count = tail - head
 

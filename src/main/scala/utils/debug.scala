@@ -9,7 +9,9 @@ object DebugUtils {
     if (DebugConfig.debug) {
       val counter = Wire(UInt(32.W))
       BoringUtils.addSink(counter, "debugCounter")
-      printf(cf"[$counter] $content\n")
+      when(counter > DebugConfig.printBegin && counter < DebugConfig.printEnd) {
+        printf(cf"[$counter] $content\n")
+      }
     }
   }
 }

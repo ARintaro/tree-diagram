@@ -15,6 +15,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
     val bus = BusMasterInterface()
 
     val robHead = Input(UInt(BackendConfig.robIdxWidth))
+    val robEmpty = Input(Bool())
   })
 
   val ctrlIO = IO(new Bundle {
@@ -88,6 +89,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   val f2_bytes = Reg(UInt(4.W))
   val f2_prd = Reg(UInt(BackendConfig.pregIdxWidth))
   val f2_valid = RegInit(false.B)
+  val f2_extType = RegInit(false.B)
 
   val f2_sideway = BackendUtils.SearchSideway(f1_ins.prs1, f1_ins.prd_or_prs2)
   val f2_src1_wire = Mux(f2_sideway(0).valid, f2_sideway(0).value, f1_src1)
@@ -110,6 +112,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 
     f2_valid := f1_valid
     f2_prd := f1_ins.prd_or_prs2
+    f2_extType := f1_ins.extType
 
     when (!f1_done) {
       f1_valid := false.B
@@ -134,6 +137,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   val f3_storeBufferIdx = RegInit(0.U(BackendConfig.storeBufferIdxWidth))
   val f3_addrLow2 = RegInit(0.U(2.W))
   val f3_memLen = RegInit(0.U(2.W))
+  val f3_extType = RegInit(false.B)
 
   val f3_bus_data = RegInit(false.B)
 
@@ -161,6 +165,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   f3_writeRd := !f2_memType
   f3_storeType := f3_store_type_wire
   f3_memLen := f2_memLen
+  f3_extType := f2_extType
   
 
   when(f2_valid) {
@@ -204,10 +209,15 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
         // 在 Buffer 中找不到数据，需要自行 load
         
         // TODO: 搜索Dcache结果
-        DebugUtils.Print(cf" [mem] load, addr: 0x${f3_word_paddr_wire}%x, ack ${io.bus.ack}, data 0x${io.bus.dataRead}%x")
+        // when (io.bus.stb) {
+        //   DebugUtils.Print(cf" [mem] load, addr: 0x${f3_word_paddr_wire}%x, ack ${io.bus.ack}, data 0x${io.bus.dataRead}%x")
+        // }
+
+        // DebugUtils.Print(cf" ${io.robHead} === ${f2_robIdx} && !${io.robEmpty} && ${io.findStore.empty}")
+
 
         // 如果是MMIO，必须storeBuffer所有内容已经写回、并且确定可以提交后再开始load
-        io.bus.stb := !io.bus.mmio || (io.robHead === f2_robIdx && io.findStore.empty)
+        io.bus.stb := !io.bus.mmio || (io.robHead === f2_robIdx && !io.robEmpty && io.findStore.empty)
         io.bus.dataBytesSelect := "b1111".U
         io.bus.dataMode := false.B
         io.bus.dataWrite := DontCare
@@ -237,8 +247,8 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   val f4_data_wire = WireInit(
     MuxLookup(f3_memLen, 0.U)(
       Seq(
-        MEM_BYTE -> f4_raw_data_wire(7, 0),
-        MEM_HALF -> f4_raw_data_wire(15, 0),
+        MEM_BYTE -> Cat(Mux(f3_extType, Fill(24, f4_raw_data_wire(7)), 0.U(24.W)), f4_raw_data_wire(7, 0)),
+        MEM_HALF -> Cat(Mux(f3_extType, Fill(16, f4_raw_data_wire(15)), 0.U(16.W)), f4_raw_data_wire(15, 0)),
         MEM_WORD -> f4_raw_data_wire
       )
     )
@@ -272,7 +282,10 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
     }
   }
 
+  
+
   when(ctrlIO.flush) {
+    // io.bus.stb := false.B
     f0_valid := false.B
     f1_valid := false.B
     f2_valid := false.B

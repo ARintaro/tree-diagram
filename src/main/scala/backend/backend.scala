@@ -113,6 +113,7 @@ class Backend extends Module {
   memPipe.io.newStore <> storeBuffer.io.news
   memPipe.io.bus <> io.devBus(0)
   memPipe.io.robHead := rob.io.head
+  memPipe.io.robEmpty := rob.io.empty
 
   // ROB
   rob.commitsIO <> renameTable.io.commits
@@ -120,7 +121,7 @@ class Backend extends Module {
   io.robRedirect <> rob.io.redirect
 
 
-  flushDelay := RegNext(rob.ctrlIO.flushPipeline)
+  flushDelay := RegNext(rob.ctrlIO.flushPipeline) 
   ctrlIO.flushPipeline := rob.ctrlIO.flushPipeline
 
 
