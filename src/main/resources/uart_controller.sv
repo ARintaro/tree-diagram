@@ -4,7 +4,7 @@ module UartControllerBlackBox #(
     parameter DATA_WIDTH = 32,
 
     parameter CLK_FREQ = 80_000_000,
-    parameter BAUD = 115200
+    parameter BAUD = 1152000
 ) (
     // clk and reset
     input wire clk_i,
@@ -63,6 +63,8 @@ module UartControllerBlackBox #(
   /*-- internal registers --*/
   wire [7:0] reg_status = {2'b0, ~txd_busy, 4'b0, rxd_data_ready};
 
+  reg last_ready;
+
   /*-- wishbone fsm --*/
   always_ff @(posedge clk_i) begin
     if (rst_i)
@@ -75,8 +77,10 @@ module UartControllerBlackBox #(
         wb_ack_o <= wb_stb_i;
       end
 
-      if (rxd_data_ready) begin
-        // $fwrite(32'h80000002, "[%0t]: uart data ready!! 0x%02x\n", $time, rxd_data);
+      last_ready <= rxd_data_ready;
+
+      if (!last_ready && rxd_data_ready) begin
+        $display("[uart controller] data ready 0x%02x", rxd_data);
       end
 
   end
@@ -89,7 +93,13 @@ module UartControllerBlackBox #(
       case (wb_adr_i[7:0])
         REG_DATA: begin
           if(wb_sel_i[0]) begin
-            $fwrite(32'h80000002, "[%0t]: uart writed data!! 0x%02x\n", $time, wb_dat_i[7:0]);
+            
+            $fwrite(32'h80000002, "Uart Controller writed data!! 0x%02x", wb_dat_i[7:0]);
+            if (wb_dat_i[7:0] >= 8'h21 && wb_dat_i[7:0] <= 8'h7E)
+              $fwrite(32'h80000002, ", ASCII: %c\n", wb_dat_i[7:0]);
+            else
+              $fwrite(32'h80000002, "\n");
+            
             txd_data  <= wb_dat_i[7:0];
             txd_start <= 1;
           end
@@ -109,7 +119,8 @@ module UartControllerBlackBox #(
     end else if(wb_stb_i && !wb_we_i) begin
       case (wb_adr_i[7:0])
         REG_DATA: begin
-          $fwrite(32'h80000002, "[%0t]: uart data readed 0x%02x\n", $time, rxd_data);
+          $display("[uart controller] readed data 0x%02x", rxd_data);
+          
           if (wb_sel_i[0]) wb_dat_o[7:0] <= rxd_data;
           if (wb_sel_i[1]) wb_dat_o[15:8] <= rxd_data;
           if (wb_sel_i[2]) wb_dat_o[23:16] <= rxd_data;

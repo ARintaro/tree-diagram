@@ -12,8 +12,8 @@ object GenConfig {
 object DebugConfig {
   var debug = true
   // 1520984
-  var printBegin = 1541800.U
-  var printEnd = 1542000.U
+  var printBegin = 50000.U
+  var printEnd = 100000.U
 
   var printRenameTable = false
   var printRenameUnitIn = false
@@ -27,12 +27,12 @@ object DebugConfig {
   var printIssue = false
   var printPreg = false
   var printLreg = false
-  var printFetch = true
-  var printRedirect = true
-  var printFlush = true
+  var printFetch = false
+  var printRedirect = false
+  var printFlush = false
 
-  val printRob = true
-  val printRobNew = true
+  val printRob = false
+  val printRobNew = false
   val printPipeIns = false
   val printStoreBuffer = false
 

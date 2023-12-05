@@ -1,11 +1,13 @@
 
 module UartModel #(
-    parameter BAUD = 115200,
+    parameter BAUD = 1152000,
     parameter CLK_FREQ = 80_000_000
 ) (
     input  wire clk,
+    input wire rst,
     input  wire rxd,
     output wire txd,
+
     input wire start,
     input wire[7:0] data,
     output wire busy
@@ -31,21 +33,15 @@ module UartModel #(
   assign busy = txd_busy;
 
   always @(posedge clk) begin
+    if (txd_start) begin
+      $display("[uart model] sending data: 0x%x", txd_data);
+    end
+  end
+
+  always @(posedge clk) begin
     txd_start <= start;
     txd_data <= data;
   end
-
-  task pc_send_byte;
-    input [7:0] arg;
-    begin
-      @(posedge clk);
-      txd_data  = arg;
-      txd_start = 1;
-      @(posedge clk);
-      txd_start = 0;
-      @(txd_busy == 0);
-    end
-  endtask
 
   // RXD Side
   wire rxd_data_ready;
@@ -64,22 +60,27 @@ module UartModel #(
       .RxD_data      (rxd_data)
   );
 
+  reg [1:0] state;
 
-  always begin
-    wait (rxd_data_ready == 1);
-    $fwrite(32'h80000002, "[%0t]: uart received 0x%02x", $time, rxd_data);
-    
-    if (rxd_data >= 8'h21 && rxd_data <= 8'h7E)
-      $fwrite(32'h80000002, ", ASCII: %c\n", rxd_data);
-    else
-      $fwrite(32'h80000002, "\n");
-    
-    @(posedge clk);
-    rxd_clear = 1;
-    @(posedge clk);
-    rxd_clear = 0;
-
-    wait(rxd_data_ready == 0);
+  always @(posedge clk) begin
+    if (rst) begin
+      state <= 0;
+    end else if (state == 0) begin
+      if (rxd_data_ready == 1) begin
+        state <= 1;
+      end
+    end else if (state == 1) begin
+      rxd_clear <= 1;
+      state <= 2;
+    end else if (state == 2) begin
+      rxd_clear <= 0;
+      state <= 3;
+    end else begin
+      if (rxd_data_ready == 0) begin
+        state <= 0;
+      end
+    end
   end
+
 
 endmodule

@@ -13,6 +13,7 @@ class ProgramCounter(inputNum: Int, startAddr: BigInt) extends Module {
 
   val addrReg = RegInit(startAddr.U)
 
+
   val arbiter = Module(new Arbiter(UInt(BusConfig.ADDR_WIDTH), inputNum))
 
   arbiter.io.out.ready := true.B

@@ -101,6 +101,12 @@ class UartController extends Module {
 
     box.io.wb_stb_i := io.bus.stb && !io.bus.ack
     io.bus.ack := box.io.wb_ack_o
+
+    // val counter = Wire(UInt(32.W))
+    // BoringUtils.addSink(counter, "debugCounter")
+    // when (io.bus.dataRead(7, 0) === 0x21.U) {
+    //   printf(cf"[$counter] data readed\n")
+    // }
   }
 }
 

@@ -44,6 +44,9 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
       DebugUtils.Print(
         cf"[mem] Pipe${index} issue, robidx: ${io.in.bits.robIdx}, imm: ${io.in.bits.imm}, prs1: ${io.in.bits.prs1}, prd_or_prs2: ${io.in.bits.prd_or_prs2}, memType: ${io.in.bits.memType}"
       )
+      DebugUtils.Print(
+        cf"f1valid "
+      )
     }
   }
 
@@ -145,7 +148,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   val f3_word_paddr_wire = Cat(f2_vaddr(31, 2), 0.U(2.W))
   f3_addrLow2 := f2_vaddr(1, 0)
 
-  DebugUtils.Print(cf"[mem] f3_word_paddr_wire 0x$f3_word_paddr_wire%x")
+  // DebugUtils.Print(cf"[mem] f3_word_paddr_wire 0x$f3_word_paddr_wire%x")
 
   io.findStore.paddr := f3_word_paddr_wire
 

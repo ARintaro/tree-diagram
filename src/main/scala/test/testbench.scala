@@ -24,6 +24,7 @@ class TestBench extends Module {
     val uart = Module(new UartModel)
     uart.io.rxd := top.io.uart.txd
     uart.io.clk := clock
+    uart.io.rst := reset
     top.io.uart.rxd := uart.io.txd
 
     uart.io.start := io.uart_start

@@ -29,6 +29,18 @@ class CircularQueue[T <: Data](
   val tail = RegInit(0.U(sizeWidth))
 
   val ram = RegInit(VecInit(Seq.fill(size)(0.U.asTypeOf(gen))))
+  val queueValidMask = MaskUtil.GetValidMask(head, tail)
+
+  if (debug_name == "FetchQueue") {
+    // DebugUtils.Print(cf"== Fetch Queue ===")
+    // for (i <- 0 until 15) {
+    //   val idx = head + i.U
+    //   when(queueValidMask(idx)) {
+    //     DebugUtils.Print(cf"Idx: $idx Ins ${ram(idx)}")
+    //   }
+    // }
+    // DebugUtils.Print(cf"Idx: $idx Ins ${ram(idx)}")
+  }
 
   when(!ctrlIO.flush) {
     // 补码，会自动warpAround
@@ -42,7 +54,7 @@ class CircularQueue[T <: Data](
       enq.ready := readyPrefixMask(i)
     }
 
-    val queueValidMask = MaskUtil.GetValidMask(head, tail)
+    
 
     // 确定出队元素
     for (i <- 0 until deqPortNum) {
@@ -62,8 +74,11 @@ class CircularQueue[T <: Data](
       io.enq(i).ready := !queueValidMask(idx) && (idx + 1.U =/= head)
       when(io.enq(i).valid && io.enq(i).ready) {
         ram(idx) := io.enq(i).bits
+        
         doEnq(i) := true.B
       }
+      // DebugUtils.Print(cf"idx ${idx} before ${ram(idx)}  next ${io.enq(i).bits}")
+      // DebugUtils.Print(cf"idx ${idx} mask ${io.enq(i).valid}")
     }
 
     tail := tail + PopCount(doEnq)

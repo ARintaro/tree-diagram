@@ -84,11 +84,14 @@ class ReorderBuffer extends Module with InstructionConstants {
 
     val head = Output(UInt(BackendConfig.robIdxWidth))
     val empty = Output(Bool())
+    val uncertern = Output(Bool())
   })
   
   val ctrlIO = IO(new Bundle {
     val flushPipeline = Output(Bool())
   })
+
+  dontTouch(io.uncertern)
 
   val entries = RegInit(
     VecInit(Seq.fill(BackendConfig.robSize)(0.U.asTypeOf(new RobEntry)))
@@ -244,6 +247,14 @@ class ReorderBuffer extends Module with InstructionConstants {
     }
   }
 
+  io.uncertern := commitValidsFinal.zip(commitEntry).map{
+    case (valid, entry) => {
+      valid && (entry.storeType === STORE_MMIO || entry.storeType === LOAD_MMIO) 
+    }
+  }.reduce(_ || _)
+
+  
+
   // val commitsStoreBuffer_wire = WireInit(io.commitsStoreBuffer)
   // if (DebugConfig.printRob){
   //   DebugUtils.Print("============= This is the commitsStoreBuffer ============")
@@ -275,6 +286,16 @@ class ReorderBuffer extends Module with InstructionConstants {
       // print commitValidsFinal
       DebugUtils.Print(cf"commitValidsFinal: ${commitValidsFinal.asTypeOf(Vec(BackendConfig.maxCommitsNum, Bool()))}")
       DebugUtils.Print("=== END ===")
+    }
+  }
+
+  when (commitValidsFinal.reduce(_ || _)) {
+    for (i <- 0 until 3) {
+      val idx = head + i.U
+      when(commitValidsFinal(i)) {
+        val entry = entries(idx)
+        DebugUtils.Print(cf"commit 0x${entry.vaddr}%x")
+      }
     }
   }
 
