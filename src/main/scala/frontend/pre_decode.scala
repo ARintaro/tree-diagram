@@ -21,6 +21,7 @@ class PreDecoder extends Module {
 
     val jumpType = Output(JumpType())
     val newVaddr = Output(UInt(BusConfig.ADDR_WIDTH))
+    val jump = Output(Bool())
   })
 
   val opcode = io.inst(6, 0)
@@ -29,6 +30,7 @@ class PreDecoder extends Module {
   // 默认为None
   io.jumpType := JumpType.none
   io.newVaddr := io.vaddr + 4.U
+  io.jump := false.B
 
   val immTypeJ =
     Cat(Fill(12, data(31)), data(19, 12), data(20), data(30, 25), data(24, 21), 0.U(1.W))
@@ -40,13 +42,16 @@ class PreDecoder extends Module {
     is(InsConfig.Opcode.jal) {
       io.jumpType := JumpType.jal
       io.newVaddr := io.vaddr + immTypeJ
+      io.jump := true.B
     }
     is(InsConfig.Opcode.jalr) {
       io.jumpType := JumpType.jalr
+      io.jump := true.B
     }
     is(InsConfig.Opcode.branch) {
       io.jumpType := JumpType.branch
-      // io.newVaddr := io.vaddr + immTypeB
+      io.newVaddr := io.vaddr + immTypeB
+      io.jump := true.B
     }
   }
 

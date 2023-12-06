@@ -53,6 +53,8 @@ class RawInstruction extends Bundle {
   val inst = UInt(InsConfig.INS_WIDTH)
   val exception = Bool()
   val exceptionCode = UInt(InsConfig.EXCEPTION_WIDTH)
+  val jump = Bool()
+  val jumpTarget = UInt(BusConfig.ADDR_WIDTH)
 }
 
 trait InstructionConstants {

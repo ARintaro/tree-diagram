@@ -41,6 +41,8 @@ class InstructionFetchUnit extends Module {
   for(i <- 0 until CacheConfig.icache.cacheLineSize) {
     fetchQueue.io.enq(i).bits.exception := false.B
     fetchQueue.io.enq(i).bits.exceptionCode := 0.U
+    fetchQueue.io.enq(i).bits.jump := false.B
+    fetchQueue.io.enq(i).bits.jumpTarget := 0.U
   }
 
   if(DebugConfig.printFetch) {
@@ -82,15 +84,15 @@ class InstructionFetchUnit extends Module {
     preDecs(i).vaddr := curPC
   }
 
-  // 判断是否有JAL，有的话更改发起重定向请求
+  // 判断是否有Jump，有的话更改发起重定向请求
   // TODO : 分支预测
-  val isJal = preDecs.map(_.jumpType === JumpType.jal)
-  val jalScan = isJal.scanLeft(false.B)(_ || _).tail
-  val jalValid = (false.B +: jalScan.init).map(!_)
+  val isJump = preDecs.map(_.jump)
+  val jumpScan = isJump.scanLeft(false.B)(_ || _).tail
+  val jumpValid = (false.B +: jumpScan.init).map(!_)
 
   // 计算最终的valid
   val fetchValid =
-    jalValid.zip(icache.f2_io.valid).zip(fetchQueue.io.enq.map(_.ready)).map {
+    jumpValid.zip(icache.f2_io.valid).zip(fetchQueue.io.enq.map(_.ready)).map {
       case ((x, y), z) => x && y && z
     }.scanLeft(true.B)(_ && _).tail
 
@@ -110,9 +112,10 @@ class InstructionFetchUnit extends Module {
     fetchQueue.io.enq(i).valid := fetchValid(i)
     fetchQueue.io.enq(i).bits.vaddr := fetchPC(i)
     fetchQueue.io.enq(i).bits.inst := icache.f2_io.ins(i)
+    fetchQueue.io.enq(i).bits.jump := jumpValid(i)
 
-    
-    
+    //TODO:预测分支地址
+    fetchQueue.io.enq(i).bits.jumpTarget := 0.U
   }
 
   fetchQueue.io.deq.zip(io.fetch).foreach {
@@ -120,34 +123,3 @@ class InstructionFetchUnit extends Module {
   }
 }
 
-class IfuTestTop extends Module {
-  val io = IO(new Bundle {
-    val dataRead = Output(UInt(BusConfig.DATA_WIDTH))
-  })
-  val sramBusIO = IO(Vec(2, BusMasterInterface()))
-  val ctrlIO = IO(new Bundle {
-    val flush = Input(Bool())
-
-    val clearTLB = Input(Bool())
-
-    val clearIcache = Input(Bool())
-  })
-
-  val ifu = Module(new InstructionFetchUnit)
-
-  ifu.ctrlIO <> ctrlIO
-  ifu.sramBusIO <> sramBusIO
-
-  val fetched = Reg(Vec(FrontendConfig.decoderNum, new RawInstruction))
-  val fetchedValid = RegInit(VecInit(Seq.fill(FrontendConfig.decoderNum)(false.B)))
-
-  for (i <- 0 until FrontendConfig.decoderNum) {
-    ifu.io.fetch(i).ready := true.B
-    fetchedValid(i) := ifu.io.fetch(i).valid
-    when (ifu.io.fetch(i).valid) {
-      fetched(i) := ifu.io.fetch(i).bits
-    }
-  }
-
-  io.dataRead := fetched(0).inst
-}

@@ -88,8 +88,8 @@ class Decoder extends Module with InstructionConstants {
 
   
   // TODO : Predict Jump
-  io.out.predictJump := false.B
-  io.out.predictTarget := 0.U
+  io.out.predictJump := io.in.jump
+  io.out.predictTarget := io.in.jumpTarget
 
   io.out.flush := false.B
   io.out.unique := false.B
