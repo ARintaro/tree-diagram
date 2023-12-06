@@ -232,12 +232,6 @@ class CompressedStoreBuffer(findPortNum : Int) extends Module {
   val valid = RegInit(0.U(BackendConfig.storeBufferSize.W))
   val commited = RegInit(0.U(BackendConfig.storeBufferSize.W))
 
-
-  val output = WireInit(Cat(commited, valid))
-
-  BoringUtils.addSource(output, "buttons")
-
-
   val firstEmptyIdx = PriorityEncoder(~valid)
 
   // 首先处理commit，经过重排序缓存，commit一定按顺序提交，此时不需要idx

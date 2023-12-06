@@ -18,15 +18,11 @@ object MaskUtil {
   }
 
   def GetValidMask(head : UInt, tail : UInt) : UInt = {
-    //assert(head =/= tail)
-
     val size = 1 << head.getWidth
 
     val allOne = -1.S(size.W).asUInt
 
     val leftShifted = (allOne << head)(size - 1, 0)
-    // head = 1, tail = 2
-    // 110       011
     return Mux(tail >= head,
       leftShifted & ~(allOne << tail)(size - 1, 0),
       leftShifted | (allOne >> (size.U - tail))

@@ -179,7 +179,7 @@ class InstructionCache(config : IcacheConfig) extends Module {
     randomWay := randomWay + 1.U
 
     // 物理地址有效、且没有冲刷请求时执行检索
-    when (f2_io.paddr.valid && !ctrlIO.flush && tagRam.ctrlIO.valid && dataRam.ctrlIO.valid) {
+    when (f2_io.paddr.valid && !ctrlIO.flush && !tagRam.io.clearing) {
       
       val targetTag = f2_io.paddr.bits(config.addrTagEnd, config.addrTagBegin)
       val index = f2_io.paddr.bits(config.addrIndexEnd, config.addrIndexBegin)

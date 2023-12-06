@@ -115,12 +115,6 @@ class DecodeUnit extends Module {
 
   val outBuffer = RegInit(VecInit(Seq.fill(FrontendConfig.decoderNum)(0.U.asTypeOf(new DecodedInstruction))))
 
-  val oberved = Wire(Bool())
-  dontTouch(oberved)
-
-  BoringUtils.addSink(oberved, "oberved")
-
-  
   for (i <- 0 until FrontendConfig.decoderNum) {
     // 如果自己是气泡，不管后面准没准备好都可以ready
     io.in(i).ready := io.nextDone
@@ -132,8 +126,7 @@ class DecodeUnit extends Module {
 
   when (ctrlIO.flush) {
     outBuffer.foreach(_.valid := false.B)
-    // io.out.foreach(_.valid := false.B)
-
+    
   } .elsewhen(io.nextDone) {
     for (i <- 0 until FrontendConfig.decoderNum) {
       outBuffer(i) := decoders(i).out

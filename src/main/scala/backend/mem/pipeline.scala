@@ -39,15 +39,6 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   when(f0_done) {
     f0_ins := io.in.bits
     f0_valid := io.in.valid
-    
-    when (io.in.valid) {
-      DebugUtils.Print(
-        cf"[mem] Pipe${index} issue, robidx: ${io.in.bits.robIdx}, imm: ${io.in.bits.imm}, prs1: ${io.in.bits.prs1}, prd_or_prs2: ${io.in.bits.prd_or_prs2}, memType: ${io.in.bits.memType}"
-      )
-      DebugUtils.Print(
-        cf"f1valid "
-      )
-    }
   }
 
   // F1
@@ -148,7 +139,6 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   val f3_word_paddr_wire = Cat(f2_vaddr(31, 2), 0.U(2.W))
   f3_addrLow2 := f2_vaddr(1, 0)
 
-  // DebugUtils.Print(cf"[mem] f3_word_paddr_wire 0x$f3_word_paddr_wire%x")
 
   io.findStore.paddr := f3_word_paddr_wire
 
@@ -211,15 +201,6 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
       }.otherwise {
         // 在 Buffer 中找不到数据，需要自行 load
         
-        // TODO: 搜索Dcache结果
-        // when (io.bus.stb) {
-        //   DebugUtils.Print(cf" [mem] load, addr: 0x${f3_word_paddr_wire}%x, ack ${io.bus.ack}, data 0x${io.bus.dataRead}%x")
-        // }
-
-        // DebugUtils.Print(cf" ${io.robHead} === ${f2_robIdx} && !${io.robEmpty} && ${io.findStore.empty}")
-
-
-        // 如果是MMIO，必须storeBuffer所有内容已经写回、并且确定可以提交后再开始load
         io.bus.stb := !io.bus.mmio || (io.robHead === f2_robIdx && !io.robEmpty && io.findStore.empty)
         io.bus.dataBytesSelect := "b1111".U
         io.bus.dataMode := false.B

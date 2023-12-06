@@ -44,7 +44,4 @@ class PhysicalRegisterFile(readPortNum: Int, writePortNum: Int) extends Module {
   }
 
   regs(0) := 0.U
-
-  // assert(regs(0) === 0.U)
-
 }

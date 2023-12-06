@@ -23,13 +23,14 @@ object DebugConfig {
 
   var printRenameNew = false
   var printDispatch = false
-  var printWriteBack = true
+  var printWriteBack = false
   var printIssue = false
   var printPreg = false
   var printLreg = false
   var printFetch = false
   var printRedirect = false
   var printFlush = false
+  var printBusError = true
 
   val printRob = false
   val printRobNew = false

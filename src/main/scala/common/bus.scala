@@ -59,9 +59,11 @@ class BusMux (slaveNum: Int) extends Module {
                                 .scan(false.B)((a, b) => b & !a).tail
   val masterCycle = io.master.stb
 
-  // assert(!io.master.stb || (PopCount(slavesSelect) === 1.U))
-  when (!(!io.master.stb || (PopCount(slavesSelect) === 1.U))) {
-    DebugUtils.Print(cf"Bus Select Error ${io.master.addr}")
+  // assert(!io.master.stb || (PopCount(slavesSelect) === 1.U), "Bus Select Error")
+  if (DebugConfig.printBusError) {
+    when (io.master.stb && PopCount(slavesSelect) =/= 1.U) {
+      DebugUtils.Print(cf"Bus Select Error at 0x${addr}%x, NOTE : this may not a bug, but a normal situation because of speculative execution")
+    }
   }
 
   val dataReg = RegInit(0.U(BusConfig.DATA_WIDTH))

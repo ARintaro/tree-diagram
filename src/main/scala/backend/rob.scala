@@ -260,21 +260,6 @@ class ReorderBuffer extends Module with InstructionConstants {
     }
   }.reduce(_ || _)
 
-  val waitingCommits = VecInit(entries.map(_.completed)).asUInt & inQueueMask
-
-  dontTouch(waitingCommits)
-
-  
-
-  // val commitsStoreBuffer_wire = WireInit(io.commitsStoreBuffer)
-  // if (DebugConfig.printRob){
-  //   DebugUtils.Print("============= This is the commitsStoreBuffer ============")
-  //   for (i <- 0 until BackendConfig.maxCommitsNum) {
-  //     DebugUtils.Print(cf"idx: ${i}  valid: ${commitsStoreBuffer_wire(i).valid}  idx: ${commitsStoreBuffer_wire(i).idx}")
-  //   }
-  //   DebugUtils.Print("================ End commitsStoreBuffer =================")
-  // }
-
   head := head + PopCount(commitValidsFinal)
 
   val flush = ctrlIO.flushPipeline
@@ -297,25 +282,6 @@ class ReorderBuffer extends Module with InstructionConstants {
       // print commitValidsFinal
       DebugUtils.Print(cf"commitValidsFinal: ${commitValidsFinal.asTypeOf(Vec(BackendConfig.maxCommitsNum, Bool()))}")
       DebugUtils.Print("=== END ===")
-    }
-  }
-
-  val breakpoint = Wire(UInt(32.W))
-  BoringUtils.addSink(breakpoint, "breakPoint")
-  val oberved = Wire(Bool())
-  BoringUtils.addSource(oberved, "oberved")
-  oberved := false.B
-
-  when (commitValidsFinal.reduce(_ || _)) {
-    for (i <- 0 until 3) {
-      val idx = head + i.U
-      when(commitValidsFinal(i)) {
-        val entry = entries(idx)
-        DebugUtils.Print(cf"commit 0x${entry.vaddr}%x")
-        when(entry.vaddr === breakpoint) {
-          oberved := true.B
-        }
-      }
     }
   }
 

@@ -8,12 +8,7 @@ class TreeDiagram extends Module {
     val baseRam = new ExternalSramInterface
     val extRam = new ExternalSramInterface
     val uart = new ExternalUartInterface
-    val buttons = Output(UInt(16.W))
-    val dip_sw = Input(UInt(32.W))
   })
-
-  BoringUtils.addSink(io.buttons, "buttons")
-  BoringUtils.addSource(io.dip_sw, "breakPoint")
 
   val ifu = Module(new InstructionFetchUnit)
   val backend = Module(new Backend)
@@ -44,11 +39,11 @@ class TreeDiagram extends Module {
 
   // 将Buses的输出连接到SramController的输入
   for (i <- 0 until 2) {
-    memBuses(i).io.slaves(0) <> baseRam.io.masters(i)
+    memBuses(i).io.slaves(0) <> baseRam.io.masters(i+ memBusNum)
     memBuses(i).io.allocate(0).start := BusConfig.BASE_RAM_START.U
     memBuses(i).io.allocate(0).mask := BusConfig.BASE_RAM_MASK.U
 
-    memBuses(i).io.slaves(1) <> extRam.io.masters(i)
+    memBuses(i).io.slaves(1) <> extRam.io.masters(i+ memBusNum)
     memBuses(i).io.allocate(1).start := BusConfig.EXT_RAM_START.U
     memBuses(i).io.allocate(1).mask := BusConfig.EXT_RAM_MASK.U
   }
@@ -60,11 +55,11 @@ class TreeDiagram extends Module {
   val devBuses = Seq.fill(2)(Module(new BusMux(3)))
 
   for (i <- 0 until 2) {
-    devBuses(i).io.slaves(0) <> baseRam.io.masters(i + memBusNum)
+    devBuses(i).io.slaves(0) <> baseRam.io.masters(i)
     devBuses(i).io.allocate(0).start := BusConfig.BASE_RAM_START.U
     devBuses(i).io.allocate(0).mask := BusConfig.BASE_RAM_MASK.U
 
-    devBuses(i).io.slaves(1) <> extRam.io.masters(i + memBusNum)
+    devBuses(i).io.slaves(1) <> extRam.io.masters(i)
     devBuses(i).io.allocate(1).start := BusConfig.EXT_RAM_START.U
     devBuses(i).io.allocate(1).mask := BusConfig.EXT_RAM_MASK.U
 
