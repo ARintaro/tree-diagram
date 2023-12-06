@@ -103,7 +103,7 @@ class ReorderBuffer extends Module with InstructionConstants {
   io.newException.rawExceptionValue2 := 0.U
   io.newException.csrTag := false.B
 
-  dontTouch(io.uncertern)
+  dontTouch(io.uncertern) // 确保时钟中断后，下一次提交的指令有 uncertern
 
   val entries = RegInit(
     VecInit(Seq.fill(BackendConfig.robSize)(0.U.asTypeOf(new RobEntry)))

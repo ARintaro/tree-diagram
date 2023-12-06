@@ -19,7 +19,6 @@ class Backend extends Module {
     val flushPipeline = Output(Bool())
   })
 
-  val flushDelay = Wire(Bool())
 
   val renameTable = Module(new RenameTable)
   val renameUnit = Module(new RenameUnit)
@@ -55,6 +54,9 @@ class Backend extends Module {
   )
 
   val storeBuffer = Module(new CompressedStoreBuffer(findPortNum = 1)) // TODO : 1个findPortNum够用吗
+  
+  val doFlush = Wire(Bool())
+  val flushDelay = RegNext(doFlush)
 
   if(DebugConfig.printIssue) {
     for(i <- 0 until BackendConfig.intPipelineNum) {
@@ -86,10 +88,7 @@ class Backend extends Module {
       x <> y
     }
   }
-  dispatch.io.mem <> memQueue.io.enq
-
-  // Int Queues
-  intQueues.foreach(_.ctrlIO.flush := flushDelay)
+  dispatch.io.mem <> memQueue.io.enq  
 
   // Int Pipeline
   for (i <- 0 until BackendConfig.intPipelineNum) {
@@ -99,18 +98,13 @@ class Backend extends Module {
     pipe.io.pcRead <> rob.readPcIO(i)
     pipe.io.regRead <> registers.io.reads(i)
     pipe.io.regWrite <> registers.io.writes(i)
-    pipe.ctrlIO.flush := flushDelay
   }
-
-  // Mem Queues
-  memQueue.ctrlIO.flush := flushDelay
 
   // MEM Pipeline
   memPipe.io.in <> memQueue.io.issue
   memPipe.io.robComplete <> rob.completeIO(BackendConfig.intPipelineNum) // 这里的robComplete是给memPipe用的,下标是BackendConfig.intPipelineNum
   memPipe.io.regRead <> registers.io.reads(BackendConfig.intPipelineNum)
   memPipe.io.regWrite <> registers.io.writes(BackendConfig.intPipelineNum)
-  memPipe.ctrlIO.flush := flushDelay
   memPipe.io.findStore <> storeBuffer.io.finds(0)
   memPipe.io.newStore <> storeBuffer.io.news
   memPipe.io.bus <> io.devBus(0)
@@ -121,11 +115,6 @@ class Backend extends Module {
   rob.commitsIO <> renameTable.io.commits
   rob.io.commitsStoreBuffer <> storeBuffer.io.commits
   io.robRedirect <> rob.io.redirect
-
-
-  flushDelay := RegNext(rob.ctrlIO.flushPipeline) 
-  ctrlIO.flushPipeline := rob.ctrlIO.flushPipeline
-
 
   if (DebugConfig.printFlush) {
     when(rob.ctrlIO.flushPipeline) {
@@ -142,7 +131,7 @@ class Backend extends Module {
 
   // store buffer
   storeBuffer.busIO <> io.devBus(1)
-  storeBuffer.ctrlIO.flush := flushDelay
+  
 
   // exception Unit
   val excu = Module(new ExceptionUnit)
@@ -153,5 +142,17 @@ class Backend extends Module {
   registers.io.reads(BackendConfig.intPipelineNum + 1)(1).id := 0.U
   excu.io.regWrite <> registers.io.writes(BackendConfig.intPipelineNum + 1)
   excu.io.redirect <> io.excRedirect 
-  BoringUtils.addSink(excu.io.updateMtip, "timerInterrupt")
+
+  // global flush logic
+  doFlush := excu.ctrlIO.flushPipeline || rob.ctrlIO.flushPipeline
+  ctrlIO.flushPipeline := doFlush
+  memQueue.ctrlIO.flush := flushDelay
+  storeBuffer.ctrlIO.flush := flushDelay
+  dispatch.ctrlIO.flush := flushDelay
+  intQueues.foreach(_.ctrlIO.flush := flushDelay)
+  for (i <- 0 until BackendConfig.intPipelineNum) {
+    intPipes(i).ctrlIO.flush := flushDelay
+  }
+  memPipe.ctrlIO.flush := flushDelay
+  
 }

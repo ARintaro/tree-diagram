@@ -80,6 +80,7 @@ class TreeDiagram extends Module {
   ifu.ctrlIO.clearIcache := false.B
   ifu.ctrlIO.clearTLB := false.B
   ifu.ctrlIO.flush := backend.ctrlIO.flushPipeline
+  decoder.ctrlIO.flush := backend.ctrlIO.flushPipeline
 
   ifu.io.redirect(0) := backend.io.robRedirect
   ifu.io.redirect(1) := backend.io.excRedirect

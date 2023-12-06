@@ -252,6 +252,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   io.robComplete.jumpTarget := DontCare
   io.robComplete.storeBufferIdx := f3_storeBufferIdx
   io.robComplete.storeType := f3_storeType
+  io.robComplete.csrTag := false.B
 
   if (DebugConfig.printWriteBack) {
     when(io.regWrite.valid) {

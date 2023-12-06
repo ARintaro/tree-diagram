@@ -27,7 +27,7 @@ class Timer extends Module {
     val mtimecmp = RegInit(0.U(64.W))
 
     // core logic of time interrupt
-    val timerInterrupt = (mtimecmp <= mtime)
+    val timerInterrupt = WireInit(mtimecmp <= mtime)
     BoringUtils.addSource(timerInterrupt, "timerInterrupt")
     
     // The bus might send load or store instructions
@@ -50,13 +50,13 @@ class Timer extends Module {
     when (io.bus.stb) {
         when (io.bus.dataMode) {
             when (signal1) {
-                mtime(31, 0) := io.bus.dataWrite
+                mtime := Cat(mtime(63, 32), io.bus.dataWrite)
             }.elsewhen (signal2) {
-                mtime(63, 32) := io.bus.dataWrite
+                mtime := Cat(io.bus.dataWrite, mtime(31, 0))
             }.elsewhen (signal3) {
-                mtimecmp(31, 0) := io.bus.dataWrite
+                mtimecmp := Cat(mtimecmp(63, 32), io.bus.dataWrite)
             }.elsewhen (signal4) {
-                mtimecmp(63, 32) := io.bus.dataWrite
+                mtimecmp := Cat(io.bus.dataWrite, mtimecmp(31, 0))
             }
         }
     }

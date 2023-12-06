@@ -36,18 +36,18 @@ class PageTableEntry extends Bundle {
     val V = Bool()
 }
 
-class MemoryManagementUnit extends Module {
-    val io = IO(new Bundle {
-        val vaddr = Flipped(Valid(UInt(32.W)))
-        val paddr = Valid(UInt(32.W))
-        val bus   = BusMasterInterface()
-    })
+// class MemoryManagementUnit extends Module {
+//     val io = IO(new Bundle {
+//         val vaddr = Flipped(Valid(UInt(32.W)))
+//         val paddr = Valid(UInt(32.W))
+//         val bus   = BusMasterInterface()
+//     })
 
-    val ctrlIO = IO(Input(new CtrlInterface))
+//     val ctrlIO = IO(Input(new CtrlInterface))
 
-    // TODO: 实现TLB
+//     // TODO: 实现TLB
 
-    // TODO:  
+//     // TODO:  
 
-}
+// }
 
