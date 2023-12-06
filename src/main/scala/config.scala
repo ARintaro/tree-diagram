@@ -10,7 +10,7 @@ object GenConfig {
 }
 
 object DebugConfig {
-  var debug = true
+  var debug = false
   // 1520984
   var printBegin = 50000.U
   var printEnd = 100000.U
@@ -23,7 +23,7 @@ object DebugConfig {
 
   var printRenameNew = false
   var printDispatch = false
-  var printWriteBack = false
+  var printWriteBack = true
   var printIssue = false
   var printPreg = false
   var printLreg = false
@@ -123,7 +123,7 @@ object FrontendConfig {
 
 object BackendConfig {
   val physicalRegNum = 48
-  val robSize = 16
+  val robSize = 8
 
   val pregIdxWidth = log2Ceil(physicalRegNum).W
   val robIdxWidth = log2Ceil(robSize).W

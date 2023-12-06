@@ -8,7 +8,12 @@ class TreeDiagram extends Module {
     val baseRam = new ExternalSramInterface
     val extRam = new ExternalSramInterface
     val uart = new ExternalUartInterface
+    val buttons = Output(UInt(16.W))
+    val dip_sw = Input(UInt(32.W))
   })
+
+  BoringUtils.addSink(io.buttons, "buttons")
+  BoringUtils.addSource(io.dip_sw, "breakPoint")
 
   val ifu = Module(new InstructionFetchUnit)
   val backend = Module(new Backend)

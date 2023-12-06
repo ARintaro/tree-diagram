@@ -3,6 +3,7 @@ package core
 import chisel3._
 import chisel3.util._
 import os.write
+import chisel3.util.experimental.BoringUtils
 
 class StoreIns extends Bundle with InstructionConstants {
   // 物理地址，按字选择，低两位必须为0
@@ -230,6 +231,12 @@ class CompressedStoreBuffer(findPortNum : Int) extends Module {
   val stores = Reg(Vec(BackendConfig.storeBufferSize, new StoreIns))
   val valid = RegInit(0.U(BackendConfig.storeBufferSize.W))
   val commited = RegInit(0.U(BackendConfig.storeBufferSize.W))
+
+
+  val output = WireInit(Cat(commited, valid))
+
+  BoringUtils.addSource(output, "buttons")
+
 
   val firstEmptyIdx = PriorityEncoder(~valid)
 

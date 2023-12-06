@@ -10,7 +10,7 @@ object MakeVivadoVerilog {
     GenConfig.verilator = false
     GenConfig.innerUartModel = false
 
-    circt.stage.ChiselStage.emitSystemVerilogFile(new TreeDiagram, Array("--target-dir",  args(0)))
+    circt.stage.ChiselStage.emitSystemVerilogFile(new TreeDiagram, Array("--target-dir",  args(0)), Array("-O=debug"))
 
 
     for ((name, config) <- BramConfig.map) {

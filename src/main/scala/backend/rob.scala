@@ -4,6 +4,7 @@ import chisel3._
 import chisel3.util._
 import svsim.Backend
 import javax.swing.DebugGraphics
+import chisel3.util.experimental.BoringUtils
 
 class RobEntry extends Bundle with InstructionConstants {
   val completed = Bool()
@@ -289,12 +290,20 @@ class ReorderBuffer extends Module with InstructionConstants {
     }
   }
 
+  val breakpoint = Wire(UInt(32.W))
+  BoringUtils.addSink(breakpoint, "breakPoint")
+  val oberved = Wire(Bool())
+  oberved := false.B
+
   when (commitValidsFinal.reduce(_ || _)) {
     for (i <- 0 until 3) {
       val idx = head + i.U
       when(commitValidsFinal(i)) {
         val entry = entries(idx)
         DebugUtils.Print(cf"commit 0x${entry.vaddr}%x")
+        when(entry.vaddr === breakpoint) {
+          oberved := true.B
+        }
       }
     }
   }
