@@ -98,8 +98,6 @@ class Bram(name : String, writeWidth : Int, writeDepth : Int, readWidth : Int, c
   }
 
   if (GenConfig.verilator) {
-    val bramIndex = RegInit(0.U(log2Ceil(writeDepth).W))
-
     val mem = SyncReadMem(config.writeDepth, UInt(config.writeWidth.W))
 
     val readNum = config.readNum
@@ -114,7 +112,7 @@ class Bram(name : String, writeWidth : Int, writeDepth : Int, readWidth : Int, c
 
     io.readData := Cat(readData.reverse)
     
-    when (io.writeEnable) {
+    when (io.writeEnable && !clearing) {
       mem.write(io.writeAddr, io.writeData)
     }
 
