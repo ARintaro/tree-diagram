@@ -110,6 +110,7 @@ class InstructionFetchUnit extends Module {
     fetchQueue.io.enq(i).valid := fetchValid(i)
     fetchQueue.io.enq(i).bits.vaddr := fetchPC(i)
     fetchQueue.io.enq(i).bits.inst := icache.f2_io.ins(i)
+    
   }
 
   fetchQueue.io.deq.zip(io.fetch).foreach {

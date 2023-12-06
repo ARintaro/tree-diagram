@@ -1,13 +1,7 @@
 package core
 
 import chisel3._
-import chisel3.util.log2Ceil
-import chisel3.util.isPow2
-import chisel3.util.OHToUInt
-import chisel3.util.Mux1H
-import chisel3.util.UIntToOH
-import chisel3.util.Cat
-import chisel3.util.Valid
+import chisel3.util._
 import dataclass.data
 
 class IcacheConfig(_wayNum : Int, _cacheLineSize : Int, _cacheLineNum : Int) {
@@ -167,6 +161,12 @@ class InstructionCache(config : IcacheConfig) extends Module {
   writeDataAddr := DontCare
   
 
+  // [31, 12] TAG
+  // [11, 4] INDEX
+  // [3, 2] CACHELINE
+  // [1, 0] 00
+
+  //
   {
     // 处理上个周期读出来的tag和data
 
@@ -194,9 +194,9 @@ class InstructionCache(config : IcacheConfig) extends Module {
       //wire?
       val tagEqual = VecInit(tags.map(_ === targetTag))
       val anyHit = tagEqual.reduce(_ || _)
-      val select = Mux(anyHit, tagEqual.asUInt, UIntToOH(randomWay))
 
-      val way = OHToUInt(select)
+      val way = Mux(anyHit, PriorityEncoder(tagEqual), randomWay)
+      val select = UIntToOH(way)
 
       val cachelineIndex = f2_io.paddr.bits(config.addrCachelineIndexEnd, config.addrCachelineIndexBegin)
 
@@ -205,7 +205,7 @@ class InstructionCache(config : IcacheConfig) extends Module {
       val hitTag = Mux1H(select, tags)
       val hitValid = Mux1H(select, valids)
       val hitData = Mux1H(select, datas)
-      
+
       // 0 1 2 3
       // 0 0 0 1
       // 32 32 32 32

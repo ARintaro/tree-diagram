@@ -112,7 +112,7 @@ class ReorderBuffer extends Module with InstructionConstants {
   // 默认不发起重定向和冲刷请求
 
   io.redirect.valid := false.B
-  io.redirect.bits := DontCare
+  
 
   ctrlIO.flushPipeline := false.B
 
@@ -157,7 +157,8 @@ class ReorderBuffer extends Module with InstructionConstants {
     when(complete.valid) {
       entry.completed := true.B
       entry.realJump := complete.jump
-      entry.jumpTargetError := complete.jump && entry.jumpTarget === complete.jumpTarget
+      // JALR
+      entry.jumpTargetError := complete.jump && entry.jumpTarget =/= complete.jumpTarget
       entry.jumpTarget := complete.jumpTarget
       entry.exception := entry.exception | complete.exception
       entry.storeBufferIdx := complete.storeBufferIdx
@@ -199,6 +200,8 @@ class ReorderBuffer extends Module with InstructionConstants {
 
   val commitValidsFinal = WireInit(VecInit(commitValidsTwo))
 
+  
+  io.redirect.bits := 0x10000001L.U
   when(!allValidTwo && commitValidsOne(firstInvalidIdx)) {
     io.redirect.valid := true.B
     ctrlIO.flushPipeline := true.B
@@ -211,6 +214,8 @@ class ReorderBuffer extends Module with InstructionConstants {
         DebugUtils.Print("=== END ===")
       }
       commitValidsFinal(firstInvalidIdx) := true.B
+      io.redirect.bits := invalidEntry.exceptionCode
+      
       assert(invalidEntry.exceptionCode === InsConfig.ExceptionCode.EC_BREAKPOINT)
     }.otherwise {
       // 分支预测失败
@@ -226,7 +231,8 @@ class ReorderBuffer extends Module with InstructionConstants {
         io.redirect.bits := Mux(
           invalidEntry.realJump,
           invalidEntry.jumpTarget,
-          invalidEntry.vaddr + 4.U
+          // invalidEntry.vaddr + 4.U
+          0x10000002L.U
         )
       }
     }
@@ -253,6 +259,10 @@ class ReorderBuffer extends Module with InstructionConstants {
       valid && (entry.storeType === STORE_MMIO || entry.storeType === LOAD_MMIO) 
     }
   }.reduce(_ || _)
+
+  val waitingCommits = VecInit(entries.map(_.completed)).asUInt & inQueueMask
+
+  dontTouch(waitingCommits)
 
   
 

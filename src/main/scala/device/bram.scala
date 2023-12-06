@@ -104,6 +104,8 @@ class Bram(name : String, writeWidth : Int, writeDepth : Int, readWidth : Int, c
     }
 
     io.readData := Cat(readData.reverse)
+
+    DebugUtils.Print(cf"${name} bram read data ${io.readData}")
     
     when (io.writeEnable) {
       mem.write(io.writeAddr, io.writeData)
@@ -142,10 +144,13 @@ class Bram(name : String, writeWidth : Int, writeDepth : Int, readWidth : Int, c
 
     when(clearBram || ctrlIO.clear) {
       ctrlIO.valid := false.B
+      io.readData := 0.U
+
+      bram.io.addra := bramIndex
+      bram.io.dina := 0.U
+      bram.io.wea := true.B
+      
       when(bramIndex =/= writeDepth.U - 1.U) {
-        bram.io.addra := bramIndex
-        bram.io.dina := 0.U
-        bram.io.wea := true.B
         bramIndex := bramIndex + 1.U
       } .elsewhen(bramIndex === writeDepth.U - 1.U) {
         clearBram := false.B

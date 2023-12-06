@@ -14,6 +14,8 @@ class TestBench extends Module {
 
   val top = Module(new TreeDiagram)
 
+  top.io.dip_sw := 0.U;
+
   val sram0 = Module(new VirtualSram)
   val sram1 = Module(new VirtualSram)
   
