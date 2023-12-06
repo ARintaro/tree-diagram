@@ -200,6 +200,8 @@ class InstructionCache(config : IcacheConfig) extends Module {
 
       val cachelineIndex = f2_io.paddr.bits(config.addrCachelineIndexEnd, config.addrCachelineIndexBegin)
 
+      assert(f2_io.paddr.bits === 0.U || PopCount(tagEqual) <= 1.U)
+
       // 如果命中，选中命中的way
       // 如果没命中，随机挑选一个way
       val hitTag = Mux1H(select, tags)

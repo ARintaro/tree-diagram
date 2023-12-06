@@ -27,7 +27,7 @@ object DebugConfig {
   var printIssue = false
   var printPreg = false
   var printLreg = false
-  var printFetch = false
+  var printFetch = true
   var printRedirect = false
   var printFlush = false
   var printBusError = true
@@ -124,7 +124,7 @@ object FrontendConfig {
 
 object BackendConfig {
   val physicalRegNum = 48
-  val robSize = 8
+  val robSize = 16
 
   val pregIdxWidth = log2Ceil(physicalRegNum).W
   val robIdxWidth = log2Ceil(robSize).W
