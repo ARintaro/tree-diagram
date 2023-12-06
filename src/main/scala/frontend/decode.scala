@@ -3,9 +3,11 @@ package core
 import chisel3._
 import chisel3.util._
 
+
 import RV32IPattern._
 import InsConfig._
 import InsConfig.ExceptionCode._
+import chisel3.util.experimental.BoringUtils
 
 class Decoder extends Module with InstructionConstants {
   val io = IO(new Bundle {
@@ -112,6 +114,12 @@ class DecodeUnit extends Module {
   val decoders = VecInit(Seq.fill(FrontendConfig.decoderNum)(Module(new Decoder).io))
 
   val outBuffer = RegInit(VecInit(Seq.fill(FrontendConfig.decoderNum)(0.U.asTypeOf(new DecodedInstruction))))
+
+  val oberved = Wire(Bool())
+  dontTouch(oberved)
+
+  BoringUtils.addSink(oberved, "oberved")
+
   
   for (i <- 0 until FrontendConfig.decoderNum) {
     // 如果自己是气泡，不管后面准没准备好都可以ready

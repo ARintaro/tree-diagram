@@ -293,6 +293,7 @@ class ReorderBuffer extends Module with InstructionConstants {
   val breakpoint = Wire(UInt(32.W))
   BoringUtils.addSink(breakpoint, "breakPoint")
   val oberved = Wire(Bool())
+  BoringUtils.addSource(oberved, "oberved")
   oberved := false.B
 
   when (commitValidsFinal.reduce(_ || _)) {
