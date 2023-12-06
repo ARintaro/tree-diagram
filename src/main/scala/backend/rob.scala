@@ -160,6 +160,7 @@ class ReorderBuffer extends Module with InstructionConstants {
       // JALR
       entry.jumpTargetError := complete.jump && entry.jumpTarget =/= complete.jumpTarget
       entry.jumpTarget := complete.jumpTarget
+
       entry.exception := entry.exception | complete.exception
       entry.storeBufferIdx := complete.storeBufferIdx
       entry.storeType := complete.storeType
@@ -219,6 +220,7 @@ class ReorderBuffer extends Module with InstructionConstants {
       assert(invalidEntry.exceptionCode === InsConfig.ExceptionCode.EC_BREAKPOINT)
     }.otherwise {
       // 分支预测失败
+      
       commitValidsFinal(firstInvalidIdx) := true.B
       when(invalidEntry.jumpTargetError) {
         // 跳转地址错误
@@ -231,8 +233,7 @@ class ReorderBuffer extends Module with InstructionConstants {
         io.redirect.bits := Mux(
           invalidEntry.realJump,
           invalidEntry.jumpTarget,
-          // invalidEntry.vaddr + 4.U
-          0x10000002L.U
+          invalidEntry.vaddr + 4.U
         )
       }
     }

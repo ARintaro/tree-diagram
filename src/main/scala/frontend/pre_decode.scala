@@ -15,11 +15,13 @@ object JumpType extends ChiselEnum {
 }
 
 class PreDecoder extends Module {
+
   val io = IO(new Bundle {
     val inst = Input(UInt(InsConfig.INS_WIDTH))
     val vaddr = Input(UInt(BusConfig.ADDR_WIDTH))
 
     val jumpType = Output(JumpType())
+
     val newVaddr = Output(UInt(BusConfig.ADDR_WIDTH))
     val jump = Output(Bool())
   })
@@ -46,7 +48,7 @@ class PreDecoder extends Module {
     }
     is(InsConfig.Opcode.jalr) {
       io.jumpType := JumpType.jalr
-      io.jump := true.B
+      io.jump := false.B
     }
     is(InsConfig.Opcode.branch) {
       io.jumpType := JumpType.branch

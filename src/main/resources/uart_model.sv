@@ -1,6 +1,6 @@
 
 module UartModel #(
-    parameter BAUD = 1152000,
+    parameter BAUD = 115200,
     parameter CLK_FREQ = 90_000_000
 ) (
     input  wire clk,

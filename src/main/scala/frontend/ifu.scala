@@ -38,14 +38,13 @@ class InstructionFetchUnit extends Module {
       "FetchQueue"
     )
   )
-  for(i <- 0 until CacheConfig.icache.cacheLineSize) {
+
+  for (i <- 0 until CacheConfig.icache.cacheLineSize) {
     fetchQueue.io.enq(i).bits.exception := false.B
     fetchQueue.io.enq(i).bits.exceptionCode := 0.U
-    fetchQueue.io.enq(i).bits.jump := false.B
-    fetchQueue.io.enq(i).bits.jumpTarget := 0.U
   }
 
-  if(DebugConfig.printFetch) {
+  if (DebugConfig.printFetch) {
     for(i <- 0 until CacheConfig.icache.cacheLineSize) {
       when(fetchQueue.io.enq(i).ready && fetchQueue.io.enq(i).valid) {
         val bits = fetchQueue.io.enq(i).bits
@@ -112,10 +111,8 @@ class InstructionFetchUnit extends Module {
     fetchQueue.io.enq(i).valid := fetchValid(i)
     fetchQueue.io.enq(i).bits.vaddr := fetchPC(i)
     fetchQueue.io.enq(i).bits.inst := icache.f2_io.ins(i)
-    fetchQueue.io.enq(i).bits.jump := jumpValid(i)
-
-    //TODO:预测分支地址
-    fetchQueue.io.enq(i).bits.jumpTarget := 0.U
+    fetchQueue.io.enq(i).bits.jump := Mux(preDecs(i).jumpType === JumpType.jal, false.B, preDecs(i).jump)
+    fetchQueue.io.enq(i).bits.jumpTarget := preDecs(i).newVaddr
   }
 
   fetchQueue.io.deq.zip(io.fetch).foreach {
