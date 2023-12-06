@@ -273,21 +273,26 @@ class InstructionCache(config : IcacheConfig) extends Module {
         dataRam.io.writeEnable := true.B
 
         acked := false.B
-        missed := false.B
       }
 
       when (missed) {
-        sramAddrReg := sramAddr
-        writeTagAddrReg := writeTagAddr
-        writeTagDataReg := writeTagData
-        writeDataAddrReg := writeDataAddr
+        when (acked && sramAddrReg === f2_io.paddr.bits) {
+          // 如果这周期请求地址与正在写回的地址相同
+          f2_io.ins(0) := sramIO.dataRead
+          f2_io.valid(0) := true.B
+        } .otherwise {
+          sramAddrReg := sramAddr
+          writeTagAddrReg := writeTagAddr
+          writeTagDataReg := writeTagData
+          writeDataAddrReg := writeDataAddr
 
-        busy := true.B
+          busy := true.B
 
-        sramIO.stb := true.B
-        sramIO.addr := sramAddr
-        sramIO.dataBytesSelect := "b1111".U
-        sramIO.dataMode := false.B
+          sramIO.stb := true.B
+          sramIO.addr := sramAddr
+          sramIO.dataBytesSelect := "b1111".U
+          sramIO.dataMode := false.B
+        }
       }
     }
   }  
