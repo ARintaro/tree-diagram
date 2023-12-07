@@ -33,7 +33,9 @@ module UartModel #(
   assign busy = txd_busy;
 
   always @(posedge clk) begin
-    if (txd_start) begin
+    if (rst) begin
+      txd_start <= 0;
+    end else if (txd_start) begin
       $display("[uart model] sending data: 0x%x", txd_data);
     end
   end
@@ -67,6 +69,7 @@ module UartModel #(
       state <= 0;
     end else if (state == 0) begin
       if (rxd_data_ready == 1) begin
+        $display("[uart model] received data: 0x%x", rxd_data);
         state <= 1;
       end
     end else if (state == 1) begin
