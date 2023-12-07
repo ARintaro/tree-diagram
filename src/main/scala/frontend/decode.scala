@@ -77,7 +77,7 @@ class Decoder extends Module with InstructionConstants {
                                                                                                                                     EC_M_ENV_CALL,
                                                                                                                                 Mux(state === S_LEVEL,
                                                                                                                                     EC_S_ENV_CALL,
-                                                                                                                                    EC_U_ENV_CALL)), true.B , false.B, CSRNONE),
+                                                                                                                                    EC_U_ENV_CALL))  , true.B , false.B, CSRNONE),
       ebreakPattern-> List(ALU_ADD , BRU_NONE, OP1_ZERO, OP2_ZERO, false.B, IMMT_NONE, true.B   , IQT_INT , false.B , MEM_WORD, EC_BREAKPOINT        , true.B , false.B, CSRNONE),
       csrrwPattern -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U                  , true.B , true.B , CSRRW  ),
       csrrsPattern -> List(ALU_ADD , BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U                  , true.B , true.B , CSRRS  ),
