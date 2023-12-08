@@ -10,27 +10,29 @@ object GenConfig {
 }
 
 object DebugConfig {
-  var debug = false
+  var debug = true
   // 1520984
+
+  var printPart = false
   var printBegin = 50000.U
   var printEnd = 100000.U
 
-  var printRenameTable = true
-  var printRenameUnitIn = true
-  
-  var printRenameAlloc = true
-  var printRenameFree = true
+  var printRenameTable = false
+  var printRenameUnitIn = false
 
-  var printRenameNew = true
-  var printDispatch = true
+  var printRenameAlloc = false
+  var printRenameFree = false
+
+  var printRenameNew = false
+  var printDispatch = false
   var printWriteBack = false
   var printIssue = false
-  var printPreg = true
+  var printPreg = false
   var printLreg = false
   var printFetch = false
   var printRedirect = false
   var printFlush = true
-  var printBusError = true
+  var printBusError = false
 
   val printRob = true
   val printRobNew = false
