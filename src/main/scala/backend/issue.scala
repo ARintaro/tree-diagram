@@ -192,6 +192,9 @@ class IntInstruction
   val bruType = UInt(BRU_WIDTH)
   val aluType = UInt(ALU_WIDTH)
 
+  // csr related instructions
+  val csrTag = Bool()
+
   override def checkReady(busy: UInt): Bool = {
     return MuxLookup(bruType, !busy(prs1) && !busy(prs2)) (
       Seq(

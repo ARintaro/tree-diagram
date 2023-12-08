@@ -10,14 +10,16 @@ object GenConfig {
 }
 
 object DebugConfig {
-  var debug = false
+  var debug = true
   // 1520984
+
+  var printPart = false
   var printBegin = 50000.U
   var printEnd = 100000.U
 
   var printRenameTable = false
   var printRenameUnitIn = false
-  
+
   var printRenameAlloc = false
   var printRenameFree = false
 
@@ -29,15 +31,15 @@ object DebugConfig {
   var printLreg = false
   var printFetch = true
   var printRedirect = false
-  var printFlush = false
-  var printBusError = true
+  var printFlush = true
+  var printBusError = false
 
   val printRob = true
   val printRobNew = false
   val printPipeIns = false
   val printStoreBuffer = false
 
-  val printException = false
+  val printException = true
 
   var printBusy = false
 }
@@ -59,6 +61,8 @@ object BusConfig {
   val EXT_RAM_MASK = 0xFFC00000L
   val UART_START = 0x10000000L
   val UART_MASK = 0xFFFF0000L
+  val TIMER_START = 0x02000000L
+  val TIMER_MASK = 0x03FF0000L
 }
 
 object InsConfig {

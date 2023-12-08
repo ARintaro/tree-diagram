@@ -5,6 +5,7 @@ import chisel3.util._
 import svsim.Backend
 import javax.swing.DebugGraphics
 import chisel3.util.experimental.BoringUtils
+import InsConfig._
 
 class RobEntry extends Bundle with InstructionConstants {
   val completed = Bool()
@@ -23,10 +24,10 @@ class RobEntry extends Bundle with InstructionConstants {
   val exception = Bool()
   val exceptionCode = UInt(InsConfig.EXCEPTION_WIDTH)
 
-
   val storeBufferIdx = UInt(BackendConfig.storeBufferIdxWidth)
   val storeType = UInt(STORE_TYPE_WIDTH)
 
+  val csrTag = Bool()
 
 }
 
@@ -58,6 +59,7 @@ class RobReadPcRequest extends Bundle with InstructionConstants {
 }
 
 class RobCompleteRequest extends Bundle with InstructionConstants{
+
   val valid = Output(Bool())
   val robIdx = Output(UInt(BackendConfig.robIdxWidth))
   val jump = Output(Bool())
@@ -66,6 +68,8 @@ class RobCompleteRequest extends Bundle with InstructionConstants{
   val exceptionCode = Output(UInt(InsConfig.EXCEPTION_WIDTH))
   val storeBufferIdx = Output(UInt(BackendConfig.storeBufferIdxWidth))
   val storeType = Output(UInt(STORE_TYPE_WIDTH))
+  val csrTag = Output(Bool())
+
 }
 
 class ReorderBuffer extends Module with InstructionConstants {
@@ -84,15 +88,23 @@ class ReorderBuffer extends Module with InstructionConstants {
     val commitsStoreBuffer = Vec(BackendConfig.maxCommitsNum, new CommitStoreRequest)
 
     val head = Output(UInt(BackendConfig.robIdxWidth))
+    val newException = Output(new NewException)
     val empty = Output(Bool())
     val uncertern = Output(Bool())
   })
   
   val ctrlIO = IO(new Bundle {
     val flushPipeline = Output(Bool())
+    // val conductCsr = Output(Bool())
   })
 
-  dontTouch(io.uncertern)
+  io.newException.valid := false.B
+  io.newException.exceptionCode := 0.U
+  io.newException.precisePC := 0.U
+  io.newException.rawExceptionValue2 := 0.U
+  io.newException.csrTag := false.B
+
+  dontTouch(io.uncertern) // 确保时钟中断后，下一次提交的指令有 uncertern
 
   val entries = RegInit(
     VecInit(Seq.fill(BackendConfig.robSize)(0.U.asTypeOf(new RobEntry)))
@@ -136,6 +148,7 @@ class ReorderBuffer extends Module with InstructionConstants {
       entry.exceptionCode := newIO.news(i).exceptionCode
       entry.storeBufferIdx := DontCare
       entry.storeType := DontCare
+      entry.csrTag := false.B
     
       entries(idx) := entry
     }
@@ -157,13 +170,14 @@ class ReorderBuffer extends Module with InstructionConstants {
     when(complete.valid) {
       entry.completed := true.B
       entry.realJump := complete.jump
-      // JALR
-      entry.jumpTargetError := complete.jump && entry.jumpTarget =/= complete.jumpTarget
+      // jumpTargetError表项的意思是：预测跳转，实际也跳转，但是预测的跳转地址错误
+      entry.jumpTargetError := entry.predictJump && complete.jump && entry.jumpTarget =/= complete.jumpTarget
       entry.jumpTarget := complete.jumpTarget
 
       entry.exception := entry.exception | complete.exception
       entry.storeBufferIdx := complete.storeBufferIdx
       entry.storeType := complete.storeType
+      entry.csrTag := complete.csrTag
       when(complete.exception) {
         entry.exceptionCode := complete.exceptionCode
       }
@@ -176,58 +190,93 @@ class ReorderBuffer extends Module with InstructionConstants {
   val commitValidsOne = Wire(Vec(BackendConfig.maxCommitsNum, Bool()))
   val commitEntry = Wire(Vec(BackendConfig.maxCommitsNum, new RobEntry))
 
+  // 首先找出可能可以被提交的表项，正常情况下，我们可以每周期提交 BackendConfig.maxCommitsNum 条指令
   for (i <- 0 until BackendConfig.maxCommitsNum) {
     val idx = head + i.U
     commitValidsOne(i) := entries(idx).completed && inQueueMask(idx)
     commitEntry(i) := entries(idx)
   }
 
+  // 第一个可能导致不被提交原因是分支预测失败
+  // 分支预测失败分为三种
+  // 1. 预测跳转，实际不跳转 2. 预测不跳转，实际跳转 3. 跳转地址预测错误
+  // commitJumpValid 的意思是没有因为分支预测失败而重定向
   val commitJumpValid =
-    VecInit(commitEntry.map(x => !x.jumpTargetError && x.realJump === x.predictJump))
+    VecInit(commitEntry.map(x => !(x.predictJump && !x.realJump || !x.predictJump && x.realJump || x.jumpTargetError)))
 
+  // 第二个可能导致不被提交原因是csr相关指令
+  // commitCsrValid 的意思是没有因为csr指令而重定向
+  val commitCsrValid = 
+    VecInit(commitEntry.map(x => !x.csrTag))
+
+  // 第三个可能导致不被提交原因是执行指令过程中发生了异常
+  // commitExcValid 的意思是没有因为异常而重定向
+  val commitExcValid = 
+    VecInit(commitEntry.map(x => !x.exception))
+
+  // 得到第二版的提交有效信号
   val commitValidsTwo = commitValidsOne
     .zip(commitJumpValid)
-    .zip(commitEntry)
-    .map { case ((x, y), z) =>
-      x && y && !z.exception
+    .zip(commitCsrValid)
+    .zip(commitExcValid)
+    .map {
+      case (((valid, jumpValid), csrValid), excValid) => {
+        valid && jumpValid && csrValid && excValid
+      }
     }
-    .scan(true.B)(_ && _)
-    .tail
 
-  val allValidTwo = commitValidsTwo.reduce(_ && _)
-  val firstInvalidIdx = PriorityEncoder(commitValidsTwo.map(!_))
+  // 最后考虑，只要同一批次提交的指令中有一个不被提交，后面的指令都不会被提交
+  // 得到第3版，以及最终提交有效信号
+  val commitValidsThree = commitValidsTwo.scan(true.B)(_ && _).tail
+  val commitValidsFinal = WireInit(VecInit(commitValidsThree))
 
+  // 并找到第一个不被正常提交的指令
+  val allValid = commitValidsThree.reduce(_ && _)
+  val firstInvalidIdx = PriorityEncoder(commitValidsThree.map(!_))
   val invalidEntry = commitEntry(firstInvalidIdx)
-
-  val commitValidsFinal = WireInit(VecInit(commitValidsTwo))
-
   
   io.redirect.bits := 0x10000001L.U
-  when(!allValidTwo && commitValidsOne(firstInvalidIdx)) {
+  
+  /* ================ 重定向逻辑 ================ */
+  // 只要有一个指令的commitValidsFinal为False，就需要重定向并冲刷流水线
+  when(!allValid && commitValidsOne(firstInvalidIdx)) {
     io.redirect.valid := true.B
     ctrlIO.flushPipeline := true.B
-
-    when(invalidEntry.exception) {
-      // TODO : 异常跳转地址, 根据异常类型设定firstInvalid是否提交
+    
+    // 下面分别讨论三种情况，注意优先级：csr > exc > predict mistake
+    when(!commitCsrValid(firstInvalidIdx)) {
+      // 提交执行csr指令
+      DebugUtils.Print(cf"RobIdx CSR Instruction: PC = 0x${invalidEntry.vaddr}%x")
+      io.newException.valid := true.B
+      io.newException.exceptionCode := 0.U
+      io.newException.precisePC := invalidEntry.vaddr // 参考蜂鸟p223，加4由软件处理
+      io.newException.rawExceptionValue2 := 0.U
+      io.newException.csrTag := invalidEntry.csrTag
+      commitValidsFinal(firstInvalidIdx) := true.B
+      // io.redirect.valid := false.B
+      // ctrlIO.flushPipeline := true.B
+    }.elsewhen(!commitExcValid(firstInvalidIdx)) {
+      io.newException.valid := true.B
+      io.newException.exceptionCode := invalidEntry.exceptionCode
+      io.newException.precisePC := invalidEntry.vaddr
+      io.newException.csrTag := invalidEntry.csrTag
+      io.newException.rawExceptionValue2 := 0.U // TODO: 关于mtval的赋值，我们还不考虑
       if (DebugConfig.printException) {
         DebugUtils.Print("=== Exception ===")
         DebugUtils.Print(cf"Commit Exception ${invalidEntry.exceptionCode}")
         DebugUtils.Print("=== END ===")
       }
       commitValidsFinal(firstInvalidIdx) := true.B
-      io.redirect.bits := invalidEntry.exceptionCode
-      
-      assert(invalidEntry.exceptionCode === InsConfig.ExceptionCode.EC_BREAKPOINT)
-    }.otherwise {
+    }.elsewhen(!commitJumpValid(firstInvalidIdx)) {
       // 分支预测失败
       
       commitValidsFinal(firstInvalidIdx) := true.B
       when(invalidEntry.jumpTargetError) {
-        // 跳转地址错误
+        // 3. 跳转地址预测错误
         DebugUtils.Print(cf"RobIdx JumpTarget Error, New Target 0x${invalidEntry.jumpTarget}%x")
         io.redirect.bits := invalidEntry.jumpTarget
       }.otherwise {
-        // 是否跳转错误
+        // 1. 预测跳转，实际不跳转 2. 预测不跳转，实际跳转
         DebugUtils.Print(cf"RobIdx Jump Error, New Jump ${invalidEntry.realJump} 0x${io.redirect.bits}%x")
         assert(invalidEntry.realJump =/= invalidEntry.predictJump)
         io.redirect.bits := Mux(
@@ -235,7 +284,7 @@ class ReorderBuffer extends Module with InstructionConstants {
           invalidEntry.jumpTarget,
           invalidEntry.vaddr + 4.U
         )
-      }
+      } 
     }
   }
 
@@ -245,7 +294,7 @@ class ReorderBuffer extends Module with InstructionConstants {
       out.valid := valid && entry.writeRd
       out.pregIdx := entry.rdPidx
       out.lregIdx := entry.rdLidx
-    }
+    } 
   }
 
   io.commitsStoreBuffer.zip(commitValidsFinal).zip(commitEntry).foreach {
@@ -281,11 +330,11 @@ class ReorderBuffer extends Module with InstructionConstants {
         }
       }
       // print commitValidsFinal
-      DebugUtils.Print(cf"commitValidsFinal: ${commitValidsFinal.asTypeOf(Vec(BackendConfig.maxCommitsNum, Bool()))}")
+      // DebugUtils.Print(cf"commitValidsFinal: ${commitValidsFinal.asTypeOf(Vec(BackendConfig.maxCommitsNum, Bool()))}")
       DebugUtils.Print("=== END ===")
     }
   }
 
   assert(newIO.newsCount <= newIO.restSize)
   assert(PopCount(newIO.news.map(_.valid)) === newIO.newsCount)
-}
+}   
