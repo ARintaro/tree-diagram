@@ -77,7 +77,7 @@ class TreeDiagram extends Module {
   backend.io.devBus(0) <> devBuses(0).io.master
   backend.io.devBus(1) <> devBuses(1).io.master
 
-  ifu.ctrlIO.clearIcache := false.B
+  ifu.ctrlIO.clearIcache := backend.ctrlIO.clearICache
   ifu.ctrlIO.clearTLB := false.B
   ifu.ctrlIO.flush := backend.ctrlIO.flushPipeline
   // TODO: 将FENCEI信号(backend.ctrlIO.clearICache)接到Icache

@@ -123,7 +123,11 @@ class InstructionCache(config : IcacheConfig) extends Module {
   // flush 流水线冲刷请求，在这里实际上是让上个周期发往bram的请求失效
   // clear 清空指令缓存，实际上就是清空tagRam
   // 拉高后icache会进入清理状态，需要很多个周期
-  val ctrlIO = IO(Input(new CtrlInterface))
+  val ctrlIO = IO(new Bundle {
+    val flush = Input(Bool())
+
+    val clear = Input(Bool())
+  })
 
   val sramIO = IO(BusMasterInterface())
   
@@ -135,7 +139,7 @@ class InstructionCache(config : IcacheConfig) extends Module {
   dataRam.io.master_turn_off_write()
 
   tagRam.ctrlIO.clear := ctrlIO.clear
-  dataRam.ctrlIO.clear := ctrlIO.clear
+  dataRam.ctrlIO.clear := false.B
   
   {
     // 处理这周期新的请求
