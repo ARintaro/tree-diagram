@@ -135,10 +135,7 @@ class IntPipeline(index: Int) extends Module
     f0_valid := false.B
     f1_valid := false.B
     f2_valid := false.B
-    io.regWrite.valid := false.B
-    io.robComplete.valid := false.B
-    
-    // assert(!io.in.valid)
+
   }
 }
 

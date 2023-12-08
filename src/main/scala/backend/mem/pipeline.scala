@@ -17,10 +17,10 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
     val robHead = Input(UInt(BackendConfig.robIdxWidth))
     val robEmpty = Input(Bool())
 
-    val cacheWrite = new Bundle {
-      val write = Output(new DcacheWriteInterface)
-      val ack = Input(Bool())
-    }
+    // val cacheWrite = new Bundle {
+    //   val write = Output(new DcacheWriteInterface)
+    //   val ack = Input(Bool())
+    // }
   })
 
   val ctrlIO = IO(new Bundle {

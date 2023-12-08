@@ -128,7 +128,6 @@ class DispatchUnit extends Module with InstructionConstants {
   require(BackendConfig.intPipelineNum >= FrontendConfig.decoderNum)
   
   when(ctrlIO.flush) {
-    // intAllocBegin := 0.U // 我不知道这里要不要清零；黄先生之前没写，应该是不需要的。
     csrInstructionBuffer := 0.U.asTypeOf(new CsrInstruction)
   }
 }

@@ -47,31 +47,27 @@ class CompressedIssueQueue[T <: Data with IssueInstruction](
 
   val moveMask = ~MaskUtil.GetPrefixMask(size)(issueIdx)
 
-  when(ctrlIO.flush) {
-    valid := 0.U
-    io.enq.ready := false.B
-    io.issue.valid := false.B
-  }.otherwise {
-
-    when(issueSucc) {
-      for (i <- 0 until size - 1) {
-        when(moveMask(i)) {
-          ram(i) := ram(i + 1)
-        }
+  when(issueSucc) {
+    for (i <- 0 until size - 1) {
+      when(moveMask(i)) {
+        ram(i) := ram(i + 1)
       }
     }
+  }
 
-    when(doEnq) {
-      val enqIdx = Mux(issueSucc, firstEmptyIdx - 1.U, firstEmptyIdx)
-      ram(enqIdx) := io.enq.bits
-    }
+  when(doEnq) {
+    val enqIdx = Mux(issueSucc, firstEmptyIdx - 1.U, firstEmptyIdx)
+    ram(enqIdx) := io.enq.bits
+  }
 
-    when(doEnq && !issueSucc) {
-      valid := (valid << 1) | 1.U
-    }.elsewhen(!doEnq && issueSucc) {
-      valid := valid >> 1
-    }
+  when(doEnq && !issueSucc) {
+    valid := (valid << 1) | 1.U
+  }.elsewhen(!doEnq && issueSucc) {
+    valid := valid >> 1
+  }
 
+  when(ctrlIO.flush) {
+    valid := 0.U
   }
 }
 
