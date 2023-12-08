@@ -24,7 +24,7 @@ object DebugConfig {
   var printRenameAlloc = false
   var printRenameFree = false
 
-  var printRenameNew = false
+  var printRenameNew = true
   var printDispatch = false
   var printWriteBack = false
   var printIssue = true
@@ -36,7 +36,7 @@ object DebugConfig {
   var printBusError = false
 
   val printRob = true
-  val printRobNew = false
+  val printRobNew = true
   val printPipeIns = false
   val printStoreBuffer = false
 

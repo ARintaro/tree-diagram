@@ -49,11 +49,11 @@ class CircularQueue[T <: Data](
     for (i <- 0 until deqPortNum) {
       val idx = head + i.U
       io.deq(i).bits := ram(idx)
-      io.deq(i).valid := queueValidMask(idx) & io.deq(i).ready
+      io.deq(i).valid := queueValidMask(idx)
     }
 
     // 移动队头指针
-    head := head + PopCount(io.deq.map(_.valid))
+    head := head + PopCount(io.deq.map(_.fire))
 
     val doEnq = WireInit(VecInit(Seq.fill(enqPortNum)(false.B)))
 

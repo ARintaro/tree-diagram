@@ -288,17 +288,14 @@ class RenameUnit extends Module
   // 1. rob中有足够空间
   // 2. RenameTable中可以进行写入寄存器的重命名
 
-  val inCount = PopCount(io.in.map(_.valid))
-
-  // 这里flush了也能写，反正这里flush了，rob肯定会recover了
-  val robSucc = robIO.restSize > inCount && io.nextDone
-  val succ = robSucc && renameTableIO.succ
-  robIO.newsCount := Mux(succ, inCount, 0.U)
+  // rob写入是否会成功由Decode阶段判断
+  // renameTable是否成功由 逻辑寄存器+rob num <= preg num保证
+  val succ = io.nextDone
   io.done := succ
 
   for (i <- 0 until FrontendConfig.decoderNum) {
     // 连接renameTable
-    renameTableIO.news(i).valid := io.in(i).valid && io.in(i).writeRd && robSucc
+    renameTableIO.news(i).valid := io.in(i).valid && io.in(i).writeRd && succ
     renameTableIO.news(i).lregIdx := io.in(i).rd
     renameTableIO.finds(i)(0).lregIdx := io.in(i).rs1
     renameTableIO.finds(i)(1).lregIdx := io.in(i).rs2

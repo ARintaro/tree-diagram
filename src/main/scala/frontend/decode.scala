@@ -141,6 +141,8 @@ class DecodeUnit extends Module {
 
     // 错误的指令
     val wrongInstruction = Output(UInt(InsConfig.INS_WIDTH))
+
+    val robCount = Input(UInt(BackendConfig.robIdxWidth))
   })
 
   val ctrlIO = IO(new Bundle {
@@ -150,15 +152,19 @@ class DecodeUnit extends Module {
   val decoders = VecInit(Seq.fill(FrontendConfig.decoderNum)(Module(new Decoder).io))
 
   val outBuffer = RegInit(VecInit(Seq.fill(FrontendConfig.decoderNum)(0.U.asTypeOf(new DecodedInstruction))))
+  val outBufferCount = RegInit(0.U)
 
   val wrongInstructionBuffer = RegInit(0.U(InsConfig.INS_WIDTH))
   io.wrongInstruction := wrongInstructionBuffer
+
+  val inCount = PopCount(io.in.map(_.valid))
+  val robSucc = inCount <= (BackendConfig.robSize - 1).U - io.robCount - outBufferCount
   
   for (i <- 0 until FrontendConfig.decoderNum) {
     // 如果自己是气泡，不管后面准没准备好都可以ready
-    io.in(i).ready := io.nextDone
+    io.in(i).ready := io.nextDone && robSucc
     decoders(i).in := io.in(i).bits
-    decoders(i).valid := io.in(i).valid
+    decoders(i).valid := io.in(i).valid && robSucc
 
     io.out(i) := outBuffer(i)
     
@@ -171,16 +177,14 @@ class DecodeUnit extends Module {
     //                            wrongInstructionBuffer)
   }
 
+  when (io.nextDone) {
+    outBuffer := decoders.map(_.out)
+    outBufferCount := PopCount(decoders.map(_.out.valid))
+  }
+
   when (ctrlIO.flush) {
     outBuffer.foreach(_.valid := false.B)
-    // io.out.foreach(_.valid := false.B)
     wrongInstructionBuffer := 0.U
-
-  } .elsewhen(io.nextDone) {
-    for (i <- 0 until FrontendConfig.decoderNum) {
-      outBuffer(i) := decoders(i).out
-    }
-
-  }
+  } 
 
 }

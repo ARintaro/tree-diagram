@@ -13,6 +13,7 @@ class Backend extends Module {
     val excRedirect = Output(new RedirectRequest)
 
     val devBus = Vec(2, BusMasterInterface())
+    val robCount = Output(UInt(BackendConfig.robIdxWidth))
   })
 
   val ctrlIO = IO(new Bundle {
@@ -113,6 +114,7 @@ class Backend extends Module {
   // ROB
   rob.commitsIO <> renameTable.io.commits
   rob.io.commitsStoreBuffer <> storeBuffer.io.commits
+  io.robCount := rob.io.count
   
 
   if (DebugConfig.printFlush) {

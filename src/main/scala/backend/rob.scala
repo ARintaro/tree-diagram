@@ -48,9 +48,6 @@ class NewRobRequest extends Bundle with InstructionConstants {
 
 class RobNewIO extends Bundle {
   val news = Vec(FrontendConfig.decoderNum, new NewRobRequest)
-  val newsCount = Input(UInt((log2Ceil(FrontendConfig.decoderNum)).W))
-
-  val restSize = Output(UInt((log2Ceil(BackendConfig.robSize)).W))
 }
 
 class RobReadPcRequest extends Bundle with InstructionConstants {
@@ -91,6 +88,7 @@ class ReorderBuffer extends Module with InstructionConstants {
     val newException = Output(new NewException)
     val empty = Output(Bool())
     val uncertern = Output(Bool())
+    val count = Output(UInt(BackendConfig.robIdxWidth))
   })
   
   val ctrlIO = IO(new Bundle {
@@ -116,10 +114,7 @@ class ReorderBuffer extends Module with InstructionConstants {
   io.head := head
   io.empty := head === tail
 
-  val count = tail - head
-
-  newIO.restSize := (BackendConfig.robSize - 1).U - count
-
+  io.count := tail - head
 
   // 默认不发起重定向和冲刷请求
 
@@ -127,6 +122,8 @@ class ReorderBuffer extends Module with InstructionConstants {
   
 
   ctrlIO.flushPipeline := false.B
+
+  val newsCount = PopCount(newIO.news.map(_.valid))
 
   // 处理rename阶段发送的ROB新建请求
 
@@ -155,7 +152,7 @@ class ReorderBuffer extends Module with InstructionConstants {
     newIO.news(i).idx := idx
   }
 
-  tail := tail + newIO.newsCount
+  tail := tail + newsCount
 
   // 处理流水线中查询pc的请求
   for (i <- 0 until BackendConfig.intPipelineNum) {
@@ -345,6 +342,6 @@ class ReorderBuffer extends Module with InstructionConstants {
     }
   }
 
-  assert(newIO.newsCount <= newIO.restSize)
-  assert(PopCount(newIO.news.map(_.valid)) === newIO.newsCount)
+  assert(newsCount <= ((BackendConfig.robSize - 1).U - io.count))
+  // assert(PopCount(newIO.news.map(_.valid)) === newIO.newsCount)
 }   
