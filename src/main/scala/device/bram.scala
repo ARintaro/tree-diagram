@@ -21,7 +21,7 @@ class BramConfig(_writeWidth : Int, _writeDepth : Int, _readWidth : Int) {
     println(s"type : Simple Dual Port Ram")
     println(s"writeWidth : $writeWidth")
     println(s"writeDepth : $writeDepth")
-    println(s"Write First Always Enabled")
+    println(s"Read First Always Enabled")
     println(s"No Output Register")
 
     println(s"readWidth : $readWidth")
@@ -88,7 +88,7 @@ class Bram(name : String, writeWidth : Int, writeDepth : Int, readWidth : Int, c
   val config = io.config
 
   val clearing = RegInit(clearOnInit.B)
-  val clearCursor = RegInit(0.U(log2Ceil(writeDepth).W))
+  val clearCursor = RegInit(0.U(log2Ceil(writeDepth - 1).W))
 
   io.clearing := clearing
 
@@ -122,7 +122,7 @@ class Bram(name : String, writeWidth : Int, writeDepth : Int, readWidth : Int, c
       mem.write(clearCursor, 0.U)
       clearCursor := clearCursor + 1.U
 
-      when(clearCursor === writeDepth.U - 1.U) {
+      when(clearCursor === (writeDepth - 1).U) {
         clearing := false.B
       }
     }
@@ -148,7 +148,7 @@ class Bram(name : String, writeWidth : Int, writeDepth : Int, readWidth : Int, c
       bram.io.wea := true.B
       clearCursor := clearCursor + 1.U
       
-      when(clearCursor === writeDepth.U - 1.U) {
+      when(clearCursor === (writeDepth - 1).U) {
         clearing := false.B
       }
     }

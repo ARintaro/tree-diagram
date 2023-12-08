@@ -9,8 +9,8 @@ class Backend extends Module {
     val in = Vec(FrontendConfig.decoderNum, Input(new DecodedInstruction))
 
     val renameDone = Output(Bool())
-    val robRedirect = Valid(UInt(BusConfig.ADDR_WIDTH))
-    val excRedirect = Valid(UInt(BusConfig.ADDR_WIDTH))
+    val robRedirect = Output(new RedirectRequest)
+    val excRedirect = Output(new RedirectRequest)
 
     val devBus = Vec(2, BusMasterInterface())
   })
@@ -55,8 +55,7 @@ class Backend extends Module {
 
   val storeBuffer = Module(new CompressedStoreBuffer(findPortNum = 1)) // TODO : 1个findPortNum够用吗
   
-  val doFlush = Wire(Bool())
-  val flushDelay = RegNext(doFlush)
+  
 
   if(DebugConfig.printIssue) {
     for(i <- 0 until BackendConfig.intPipelineNum) {
@@ -68,12 +67,12 @@ class Backend extends Module {
     }
   }
   // Rename Table
-  renameTable.ctrlIO.recover := flushDelay
+  
 
   // Rename Unit
   renameUnit.renameTableIO <> renameTable.io.renames
   renameUnit.robIO <> rob.newIO
-  renameUnit.ctrlIO.flush := flushDelay
+  
   renameUnit.io.in := io.in
   renameUnit.io.nextDone := dispatch.io.done
   io.renameDone := renameUnit.io.done
@@ -114,7 +113,7 @@ class Backend extends Module {
   // ROB
   rob.commitsIO <> renameTable.io.commits
   rob.io.commitsStoreBuffer <> storeBuffer.io.commits
-  io.robRedirect <> rob.io.redirect
+  
 
   if (DebugConfig.printFlush) {
     when(rob.ctrlIO.flushPipeline) {
@@ -124,7 +123,7 @@ class Backend extends Module {
 
   if (DebugConfig.printRedirect) {
     when (io.robRedirect.valid) {
-      DebugUtils.Print(cf"Backend Redirect : 0x${io.robRedirect.bits}%x")
+      DebugUtils.Print(cf"Backend Redirect : 0x${io.robRedirect.target}%x")
     }
   }
 
@@ -141,11 +140,18 @@ class Backend extends Module {
   excu.io.regRead <> registers.io.reads(BackendConfig.intPipelineNum + 1)(0)
   registers.io.reads(BackendConfig.intPipelineNum + 1)(1).id := 0.U
   excu.io.regWrite <> registers.io.writes(BackendConfig.intPipelineNum + 1)
-  excu.io.redirect <> io.excRedirect 
+  
 
   // global flush logic
-  doFlush := excu.ctrlIO.flushPipeline || rob.ctrlIO.flushPipeline
+  val doFlush = RegNext(excu.ctrlIO.flushPipeline || rob.ctrlIO.flushPipeline)
+  val flushDelay = RegNext(doFlush)
+
   ctrlIO.flushPipeline := doFlush
+  io.robRedirect := RegNext(rob.io.redirect)
+  io.excRedirect := RegNext(excu.io.redirect)
+
+  renameTable.ctrlIO.recover := flushDelay
+  renameUnit.ctrlIO.flush := flushDelay
   memQueue.ctrlIO.flush := flushDelay
   storeBuffer.ctrlIO.flush := flushDelay
   dispatch.ctrlIO.flush := flushDelay
@@ -154,6 +160,8 @@ class Backend extends Module {
     intPipes(i).ctrlIO.flush := flushDelay
   }
   memPipe.ctrlIO.flush := flushDelay
+
+  
 
   // debug: print flush
   if (DebugConfig.printFlush) {

@@ -183,7 +183,7 @@ class MemoryPipelineOld(index: Int) extends Module with InstructionConstants {
   io.robComplete.jumpTarget := DontCare
   io.robComplete.exception := false.B
   io.robComplete.exceptionCode := 0.U
-  io.robComplete.storeBufferIdx := f1_bufferIdx
+  // io.robComplete.storeBufferIdx := f1_bufferIdx
   io.robComplete.storeType := f1_storeType
 
   if(DebugConfig.printWriteBack) {

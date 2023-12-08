@@ -3,11 +3,16 @@ package core
 import chisel3._
 import chisel3.util._
 
+class RedirectRequest extends Bundle {
+  val valid = Bool()
+  val target = UInt(BusConfig.ADDR_WIDTH)
+}
+
 class InstructionFetchUnit extends Module {
   val io = IO(new Bundle {
     val fetch = Vec(FrontendConfig.decoderNum, Decoupled(new RawInstruction()))
 
-    val redirect = Vec(2, Flipped(Valid(UInt(BusConfig.ADDR_WIDTH))))
+    val redirect = Vec(2, Input(new RedirectRequest))
   })
 
   val sramBusIO = IO(Vec(2, BusMasterInterface()))
@@ -22,10 +27,9 @@ class InstructionFetchUnit extends Module {
   val pc = Module(new ProgramCounter(3, 0x80000000L))
 
   // ROB发来的重定向请求
-  pc.io.reqs(1) <> io.redirect(0)
-
+  pc.io.reqs(1) := io.redirect(0)
   // exceptionUnit发来的重定向请求
-  pc.io.reqs(2) <> io.redirect(1)
+  pc.io.reqs(2) := io.redirect(1)
 
   assert(!io.redirect(0).valid || ctrlIO.flush, "Redirect without flush")
 
@@ -104,10 +108,10 @@ class InstructionFetchUnit extends Module {
   when(anyValid) {
     // 取出有效指令
     pc.io.reqs(0).valid := true.B
-    pc.io.reqs(0).bits := preDecs(lastValidIdx).newVaddr
+    pc.io.reqs(0).target := preDecs(lastValidIdx).newVaddr
   }.otherwise {
     pc.io.reqs(0).valid := false.B
-    pc.io.reqs(0).bits := DontCare
+    pc.io.reqs(0).target := DontCare
   }
 
   for (i <- 0 until CacheConfig.icache.cacheLineSize) {

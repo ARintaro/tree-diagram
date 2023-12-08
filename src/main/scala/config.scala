@@ -2,6 +2,7 @@ package core
 
 import chisel3._
 import chisel3.util.log2Ceil
+import chisel3.util.isPow2
 
 object GenConfig {
   var verilator = false
@@ -124,6 +125,13 @@ object FrontendConfig {
   val fetchQueueSize = 16
 
   val decoderNum = 3
+
+  val branchHistoryWidth = 3
+
+  val branchHistoryBufferSize = 128
+  val branchHistoryBufferIdxWidth = log2Ceil(branchHistoryBufferSize).W
+
+  require(isPow2(branchHistoryBufferSize))
 }
 
 object BackendConfig {
@@ -150,4 +158,16 @@ object BackendConfig {
 
   val storeBufferSize = 8
   val storeBufferIdxWidth = log2Ceil(storeBufferSize).W
+
+  val dataCacheSize = 256  
+  
+  val dcacheIndexBegin = 2
+  val dcacheIndexEnd = 2 + log2Ceil(dataCacheSize) - 1
+  val dcacheTagBegin = dcacheIndexEnd + 1
+  val dcacheTagEnd = 32
+  val dcacheTagWidth = (dcacheTagEnd - dcacheTagBegin + 1).W
+
+
+  // VIPT Require
+  require(dcacheIndexBegin < 12)
 }

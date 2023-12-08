@@ -43,7 +43,7 @@ class ExceptionUnit extends Module with InstructionConstants {
         val regRead = new RegisterReadRequest
         val regWrite = new RegisterWriteRequest
 
-        val redirect = Valid(UInt(BusConfig.ADDR_WIDTH))
+        val redirect = Output(new RedirectRequest)
     })
 
     val ctrlIO = IO(new Bundle {
@@ -56,7 +56,7 @@ class ExceptionUnit extends Module with InstructionConstants {
     io.regWrite.value := 0.U
     io.regWrite.valid := false.B
 
-    io.redirect.bits := 0x10000007.U
+    io.redirect.target := 0x10000007.U
     io.redirect.valid := false.B
 
     when(io.exc.valid){
@@ -271,13 +271,13 @@ class ExceptionUnit extends Module with InstructionConstants {
     when (io.exc.valid) {
         globalPrivilegeLevel := nextPrivilegeLevel
         io.redirect.valid := true.B
-        io.redirect.bits := nextPC
+        io.redirect.target := nextPC
     }
     when (io.exc.valid) {
         if (DebugConfig.printException) {
             DebugUtils.Print("[EXCU]!!!Redirect")
             DebugUtils.Print(cf" valid: ${io.redirect.valid}")
-            DebugUtils.Print(cf" nextPC: 0x${Hexadecimal(io.redirect.bits)}")
+            DebugUtils.Print(cf" nextPC: 0x${Hexadecimal(io.redirect.target)}")
         }
     }
 

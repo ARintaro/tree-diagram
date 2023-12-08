@@ -6,7 +6,7 @@ import chisel3.util._
 class ProgramCounter(inputNum: Int, startAddr: BigInt) extends Module {
   val io = IO(new Bundle {
     // 注意，这里越后面的优先级越高
-    val reqs = Vec(inputNum, Flipped(Valid(UInt(BusConfig.ADDR_WIDTH))))
+    val reqs = Vec(inputNum, Input(new RedirectRequest))
 
     val vaddr = Output(UInt(BusConfig.ADDR_WIDTH))
   })
@@ -21,7 +21,7 @@ class ProgramCounter(inputNum: Int, startAddr: BigInt) extends Module {
   arbiter.io.in.zip(io.reqs.reverse).foreach {
     case (in, req) => {
       in.valid := req.valid
-      in.bits := req.bits
+      in.bits := req.target
     }
   }
 

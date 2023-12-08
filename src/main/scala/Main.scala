@@ -9,6 +9,7 @@ object MakeVivadoVerilog {
     // circt.stage.ChiselStage.emitSystemVerilogFile(new Test, Array("--target-dir", args(0)))
     GenConfig.verilator = false
     GenConfig.innerUartModel = false
+    DebugConfig.debug = false
 
     circt.stage.ChiselStage.emitSystemVerilogFile(new TreeDiagram, Array("--target-dir",  args(0)))
 

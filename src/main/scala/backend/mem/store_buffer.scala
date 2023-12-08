@@ -30,7 +30,7 @@ class NewStoreRequest extends Bundle {
 
 class CommitStoreRequest extends Bundle {
   val valid = Output(Bool())
-  val idx = Output(UInt(BackendConfig.storeBufferIdxWidth))
+  // val idx = Output(UInt(BackendConfig.storeBufferIdxWidth))
 }
 
 class StoreFindRequest extends Bundle {
@@ -42,177 +42,177 @@ class StoreFindRequest extends Bundle {
   val empty = Input(Bool())
 }
 
-// mmio接到其他buffer里
-class StoreBuffer(findPortNum: Int) extends Module {
-  val io = IO(new Bundle {
-    val news = Flipped(new NewStoreRequest)
-    val commits =
-      Vec(BackendConfig.maxCommitsNum, Flipped(new CommitStoreRequest))
-    val finds = Vec(findPortNum, Flipped(new StoreFindRequest))
-  })
 
-  val busIO = IO(BusMasterInterface())
+// class StoreBuffer(findPortNum: Int) extends Module {
+//   val io = IO(new Bundle {
+//     val news = Flipped(new NewStoreRequest)
+//     val commits =
+//       Vec(BackendConfig.maxCommitsNum, Flipped(new CommitStoreRequest))
+//     val finds = Vec(findPortNum, Flipped(new StoreFindRequest))
+//   })
 
-  val ctrlIO = IO(new Bundle {
-    val flush = Input(Bool())
-  })
+//   val busIO = IO(BusMasterInterface())
 
-  busIO.master_turn_off()
+//   val ctrlIO = IO(new Bundle {
+//     val flush = Input(Bool())
+//   })
 
-  val commited = RegInit(0.U(BackendConfig.storeBufferSize.W))
-  val valid = RegInit(0.U(BackendConfig.storeBufferSize.W))
+//   busIO.master_turn_off()
 
-  val stores = Reg(Vec(BackendConfig.storeBufferSize, new StoreIns))
+//   val commited = RegInit(0.U(BackendConfig.storeBufferSize.W))
+//   val valid = RegInit(0.U(BackendConfig.storeBufferSize.W))
 
-  val notCommited = valid & ~commited
+//   val stores = Reg(Vec(BackendConfig.storeBufferSize, new StoreIns))
 
-  val begin = RegInit(0.U(BackendConfig.storeBufferIdxWidth))
-  val end = RegInit(0.U(BackendConfig.storeBufferIdxWidth))
+//   val notCommited = valid & ~commited
 
-  // 处理新建请求
+//   val begin = RegInit(0.U(BackendConfig.storeBufferIdxWidth))
+//   val end = RegInit(0.U(BackendConfig.storeBufferIdxWidth))
 
-  val alloc = WireInit(0.U(BackendConfig.storeBufferSize.W))
+//   // 处理新建请求
 
-  when(io.news.valid) {
-    assert(io.news.store.paddr(1, 0) === 0.U)
+//   val alloc = WireInit(0.U(BackendConfig.storeBufferSize.W))
 
-    // Print io.news
-    if (DebugConfig.printStoreBuffer) {
-      DebugUtils.Print(
-        cf"store buffer new, idx: ${io.news.idx} paddr: 0x${io.news.store.paddr}%x, value: ${io.news.store.value}, bytes: ${io.news.store.bytes} "
-      )
-    }
+//   when(io.news.valid) {
+//     assert(io.news.store.paddr(1, 0) === 0.U)
 
-    val inc = end + 1.U
-    when(inc =/= begin) {
-      // 队列未满
-      end := inc
-      stores(end) := io.news.store
-      alloc := UIntToOH(end)
-      io.news.succ := true.B
-      io.news.idx := end
-    }.otherwise {
-      // 队列已满
-      io.news.succ := false.B
-      io.news.idx := DontCare
-    }
-  }.otherwise {
-    io.news.succ := false.B
-    io.news.idx := DontCare
-  }
+//     // Print io.news
+//     if (DebugConfig.printStoreBuffer) {
+//       DebugUtils.Print(
+//         cf"store buffer new, idx: ${io.news.idx} paddr: 0x${io.news.store.paddr}%x, value: ${io.news.store.value}, bytes: ${io.news.store.bytes} "
+//       )
+//     }
 
-  // 选择已经commit的store写入外部存储
-  val busy = RegInit(false.B)
-  val writeStore = Reg(new StoreIns)
+//     val inc = end + 1.U
+//     when(inc =/= begin) {
+//       // 队列未满
+//       end := inc
+//       stores(end) := io.news.store
+//       alloc := UIntToOH(end)
+//       io.news.succ := true.B
+//       io.news.idx := end
+//     }.otherwise {
+//       // 队列已满
+//       io.news.succ := false.B
+//       io.news.idx := DontCare
+//     }
+//   }.otherwise {
+//     io.news.succ := false.B
+//     io.news.idx := DontCare
+//   }
 
-  val free = WireInit(0.U(BackendConfig.storeBufferSize.W))
+//   // 选择已经commit的store写入外部存储
+//   val busy = RegInit(false.B)
+//   val writeStore = Reg(new StoreIns)
 
-  // 默认关闭
-  busIO.stb := false.B
-  // busIO.store := DontCare
+//   val free = WireInit(0.U(BackendConfig.storeBufferSize.W))
 
-  when(busy) {
-    busIO.stb := true.B
-    // busIO.store := writeStore
-    busIO.dataMode := true.B
-    busIO.dataWrite := writeStore.value
-    busIO.dataBytesSelect := writeStore.bytes
-    busIO.addr := writeStore.paddr
-    when(busIO.ack) {
-      busy := false.B
-      if (DebugConfig.printStoreBuffer) {
-        DebugUtils.Print(
-          cf"store buffer bus ack, paddr: 0x${writeStore.paddr}%x, value: ${writeStore.value}, bytes: ${writeStore.bytes}"
-        )
-      }
-      free := UIntToOH(begin)
-      begin := begin + 1.U
-    }
-  }.otherwise {
-    when(commited(begin)) {
-      busy := true.B
-      busIO.stb := true.B
-      val curStore = stores(begin)
-      writeStore := curStore
-      busIO.dataMode := true.B
-      busIO.dataWrite := curStore.value
-      busIO.dataBytesSelect := curStore.bytes
-      busIO.addr := curStore.paddr
-    }
+//   // 默认关闭
+//   busIO.stb := false.B
+//   // busIO.store := DontCare
 
-  }
+//   when(busy) {
+//     busIO.stb := true.B
+//     // busIO.store := writeStore
+//     busIO.dataMode := true.B
+//     busIO.dataWrite := writeStore.value
+//     busIO.dataBytesSelect := writeStore.bytes
+//     busIO.addr := writeStore.paddr
+//     when(busIO.ack) {
+//       busy := false.B
+//       if (DebugConfig.printStoreBuffer) {
+//         DebugUtils.Print(
+//           cf"store buffer bus ack, paddr: 0x${writeStore.paddr}%x, value: ${writeStore.value}, bytes: ${writeStore.bytes}"
+//         )
+//       }
+//       free := UIntToOH(begin)
+//       begin := begin + 1.U
+//     }
+//   }.otherwise {
+//     when(commited(begin)) {
+//       busy := true.B
+//       busIO.stb := true.B
+//       val curStore = stores(begin)
+//       writeStore := curStore
+//       busIO.dataMode := true.B
+//       busIO.dataWrite := curStore.value
+//       busIO.dataBytesSelect := curStore.bytes
+//       busIO.addr := curStore.paddr
+//     }
 
-  valid := (valid & ~free) | alloc
-  // 处理commit
-  commited := (commited & ~free) | io.commits
-    .map(x => Mux(x.valid, UIntToOH(x.idx), 0.U))
-    .reduce(_ | _)
+//   }
 
-  // 循环打印io.commits
-  if (DebugConfig.printStoreBuffer) {
-    for (i <- 0 until BackendConfig.maxCommitsNum) {
-      when(io.commits(i).valid) {
-        DebugUtils.Print(
-          cf"store buffer commit, idx: ${io.commits(i).idx}, paddr: 0x${stores(
-              io.commits(i).idx
-            ).paddr}%x, value: ${stores(io.commits(i).idx).value}, bytes: ${stores(io.commits(i).idx).bytes}"
-        )
-      }
-    }
+//   valid := (valid & ~free) | alloc
+//   // 处理commit
+//   commited := (commited & ~free) | io.commits
+//     .map(x => Mux(x.valid, UIntToOH(x.idx), 0.U))
+//     .reduce(_ | _)
 
-    DebugUtils.Print("==== Store Buffer BEGIN==== ")
+//   // 循环打印io.commits
+//   if (DebugConfig.printStoreBuffer) {
+//     for (i <- 0 until BackendConfig.maxCommitsNum) {
+//       when(io.commits(i).valid) {
+//         DebugUtils.Print(
+//           cf"store buffer commit, idx: ${io.commits(i).idx}, paddr: 0x${stores(
+//               io.commits(i).idx
+//             ).paddr}%x, value: ${stores(io.commits(i).idx).value}, bytes: ${stores(io.commits(i).idx).bytes}"
+//         )
+//       }
+//     }
 
-    for (i <- 0 until BackendConfig.storeBufferSize) {
-      when(valid(i)) {
-        DebugUtils.Print(
-          cf"idx: ${i}, commit: ${commited(i)} paddr: 0x${stores(i).paddr}%x, value: ${stores(
-              i
-            ).value}, bytes: ${Binary(stores(i).bytes)}"
-        )
-      }
-    }
-    DebugUtils.Print("==== Store Buffer END ==== ")
-  }
+//     DebugUtils.Print("==== Store Buffer BEGIN==== ")
 
-  val queue = Wire(Vec(BackendConfig.storeBufferSize, new StoreIns))
-  val queueValid = Wire(Vec(BackendConfig.storeBufferSize, Bool()))
-  for (i <- 0 until BackendConfig.storeBufferSize) {
-    queue(i) := stores(begin + i.U)
-    queueValid(i) := valid(begin + i.U)
-  }
+//     for (i <- 0 until BackendConfig.storeBufferSize) {
+//       when(valid(i)) {
+//         DebugUtils.Print(
+//           cf"idx: ${i}, commit: ${commited(i)} paddr: 0x${stores(i).paddr}%x, value: ${stores(
+//               i
+//             ).value}, bytes: ${Binary(stores(i).bytes)}"
+//         )
+//       }
+//     }
+//     DebugUtils.Print("==== Store Buffer END ==== ")
+//   }
 
-  val revQueue = VecInit(queue.reverse)
-  val revQueueValid = VecInit(queueValid.reverse)
+//   val queue = Wire(Vec(BackendConfig.storeBufferSize, new StoreIns))
+//   val queueValid = Wire(Vec(BackendConfig.storeBufferSize, Bool()))
+//   for (i <- 0 until BackendConfig.storeBufferSize) {
+//     queue(i) := stores(begin + i.U)
+//     queueValid(i) := valid(begin + i.U)
+//   }
 
-  // 处理find
-  for (i <- 0 until findPortNum) {
-    val find = io.finds(i)
-    val findEq = VecInit(
-      revQueue.map(x => x.paddr === find.paddr)
-    ).asUInt & revQueueValid.asUInt
-    val findHit = findEq.orR
-    val findHitIdx = PriorityEncoder(findEq)
+//   val revQueue = VecInit(queue.reverse)
+//   val revQueueValid = VecInit(queueValid.reverse)
 
-    find.valid := findHit
-    find.value := revQueue(findHitIdx).value
-    find.bytes := revQueue(findHitIdx).bytes
-  }
+//   // 处理find
+//   for (i <- 0 until findPortNum) {
+//     val find = io.finds(i)
+//     val findEq = VecInit(
+//       revQueue.map(x => x.paddr === find.paddr)
+//     ).asUInt & revQueueValid.asUInt
+//     val findHit = findEq.orR
+//     val findHitIdx = PriorityEncoder(findEq)
 
-  val recover = RegInit(false.B)
-  when(ctrlIO.flush) {
-    recover := true.B
-  }
-  when(recover) {
-    assert(!io.news.valid)
-    assert(!io.commits.map(_.valid).reduce(_ | _))
+//     find.valid := findHit
+//     find.value := revQueue(findHitIdx).value
+//     find.bytes := revQueue(findHitIdx).bytes
+//   }
 
-    val newValid = valid & commited
-    valid := newValid
-    end := begin + PopCount(newValid)
-    recover := false.B
-  }
+//   val recover = RegInit(false.B)
+//   when(ctrlIO.flush) {
+//     recover := true.B
+//   }
+//   when(recover) {
+//     assert(!io.news.valid)
+//     assert(!io.commits.map(_.valid).reduce(_ | _))
 
-}
+//     val newValid = valid & commited
+//     valid := newValid
+//     end := begin + PopCount(newValid)
+//     recover := false.B
+//   }
+
+// }
 
 
 class CompressedStoreBuffer(findPortNum : Int) extends Module {

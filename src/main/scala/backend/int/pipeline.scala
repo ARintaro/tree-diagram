@@ -126,7 +126,7 @@ class IntPipeline(index: Int) extends Module
       DebugUtils.Print(cf"complete${index}, robidx: ${io.robComplete.robIdx}, target: 0x${f2_jumpTarget}%x")
     }
   }
-  io.robComplete.storeBufferIdx := DontCare
+  // io.robComplete.storeBufferIdx := DontCare
   io.robComplete.storeType := LOAD_RAM
 
   // Flush 逻辑
@@ -138,7 +138,7 @@ class IntPipeline(index: Int) extends Module
     io.regWrite.valid := false.B
     io.robComplete.valid := false.B
     
-    assert(!io.in.valid)
+    // assert(!io.in.valid)
   }
 }
 

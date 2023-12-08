@@ -24,7 +24,7 @@ class RobEntry extends Bundle with InstructionConstants {
   val exception = Bool()
   val exceptionCode = UInt(InsConfig.EXCEPTION_WIDTH)
 
-  val storeBufferIdx = UInt(BackendConfig.storeBufferIdxWidth)
+  // val storeBufferIdx = UInt(BackendConfig.storeBufferIdxWidth)
   val storeType = UInt(STORE_TYPE_WIDTH)
 
   val csrTag = Bool()
@@ -66,7 +66,7 @@ class RobCompleteRequest extends Bundle with InstructionConstants{
   val jumpTarget = Output(UInt(BusConfig.ADDR_WIDTH))
   val exception = Output(Bool())
   val exceptionCode = Output(UInt(InsConfig.EXCEPTION_WIDTH))
-  val storeBufferIdx = Output(UInt(BackendConfig.storeBufferIdxWidth))
+  // val storeBufferIdx = Output(UInt(BackendConfig.storeBufferIdxWidth))
   val storeType = Output(UInt(STORE_TYPE_WIDTH))
   val csrTag = Output(Bool())
 
@@ -84,7 +84,7 @@ class ReorderBuffer extends Module with InstructionConstants {
     Vec(BackendConfig.intPipelineNum, Flipped(new RobReadPcRequest))
   )
   val io = IO(new Bundle {
-    val redirect = Valid(UInt(BusConfig.ADDR_WIDTH))
+    val redirect = Output(new RedirectRequest)
     val commitsStoreBuffer = Vec(BackendConfig.maxCommitsNum, new CommitStoreRequest)
 
     val head = Output(UInt(BackendConfig.robIdxWidth))
@@ -146,7 +146,7 @@ class ReorderBuffer extends Module with InstructionConstants {
       entry.jumpTarget := newIO.news(i).predictJumpTarget
       entry.exception := newIO.news(i).exception
       entry.exceptionCode := newIO.news(i).exceptionCode
-      entry.storeBufferIdx := DontCare
+      // entry.storeBufferIdx := DontCare
       entry.storeType := DontCare
       entry.csrTag := false.B
     
@@ -175,7 +175,7 @@ class ReorderBuffer extends Module with InstructionConstants {
       entry.jumpTarget := complete.jumpTarget
 
       entry.exception := entry.exception | complete.exception
-      entry.storeBufferIdx := complete.storeBufferIdx
+      // entry.storeBufferIdx := complete.storeBufferIdx
       entry.storeType := complete.storeType
       entry.csrTag := complete.csrTag
       when(complete.exception) {
@@ -235,7 +235,7 @@ class ReorderBuffer extends Module with InstructionConstants {
   val firstInvalidIdx = PriorityEncoder(commitValidsThree.map(!_))
   val invalidEntry = commitEntry(firstInvalidIdx)
   
-  io.redirect.bits := 0x10000001L.U
+  io.redirect.target := 0x10000001L.U
   
   /* ================ 重定向逻辑 ================ */
   // 只要有一个指令的commitValidsFinal为False，就需要重定向并冲刷流水线
@@ -274,12 +274,12 @@ class ReorderBuffer extends Module with InstructionConstants {
       when(invalidEntry.jumpTargetError) {
         // 3. 跳转地址预测错误
         DebugUtils.Print(cf"RobIdx JumpTarget Error, New Target 0x${invalidEntry.jumpTarget}%x")
-        io.redirect.bits := invalidEntry.jumpTarget
+        io.redirect.target := invalidEntry.jumpTarget
       }.otherwise {
         // 1. 预测跳转，实际不跳转 2. 预测不跳转，实际跳转
-        DebugUtils.Print(cf"RobIdx Jump Error, New Jump ${invalidEntry.realJump} 0x${io.redirect.bits}%x")
+        DebugUtils.Print(cf"RobIdx Jump Error, New Jump ${invalidEntry.realJump} 0x${io.redirect.target}%x")
         assert(invalidEntry.realJump =/= invalidEntry.predictJump)
-        io.redirect.bits := Mux(
+        io.redirect.target := Mux(
           invalidEntry.realJump,
           invalidEntry.jumpTarget,
           invalidEntry.vaddr + 4.U
@@ -299,7 +299,7 @@ class ReorderBuffer extends Module with InstructionConstants {
 
   io.commitsStoreBuffer.zip(commitValidsFinal).zip(commitEntry).foreach {
     case ((out, valid), entry) => {
-      out.idx := entry.storeBufferIdx
+      // out.idx := entry.storeBufferIdx
       out.valid := (valid && (entry.storeType === STORE_RAM || entry.storeType === STORE_MMIO))
     }
   }
@@ -313,9 +313,19 @@ class ReorderBuffer extends Module with InstructionConstants {
   head := head + PopCount(commitValidsFinal)
 
   val flush = ctrlIO.flushPipeline
-  when(flush) {
+  
+  val recover = RegInit(false.B)
+
+  when (recover) {
+    recover := false.B
     head := 0.U
     tail := 0.U
+  } .otherwise {
+    when (flush) {
+      recover := true.B
+      head := 0.U
+      tail := 0.U
+    }
   }
 
   if (DebugConfig.printRob) {
