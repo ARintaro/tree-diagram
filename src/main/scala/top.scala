@@ -80,6 +80,7 @@ class TreeDiagram extends Module {
   ifu.ctrlIO.clearIcache := false.B
   ifu.ctrlIO.clearTLB := false.B
   ifu.ctrlIO.flush := backend.ctrlIO.flushPipeline
+  // TODO: 将FENCEI信号(backend.ctrlIO.clearICache)接到Icache
   decoder.ctrlIO.flush := backend.ctrlIO.flushPipeline
   decoder.io.robCount := backend.io.robCount
 

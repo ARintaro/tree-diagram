@@ -48,6 +48,7 @@ class ExceptionUnit extends Module with InstructionConstants {
 
     val ctrlIO = IO(new Bundle {
         val flushPipeline = Output(Bool())
+        val clearICache = Output(Bool())
     })
 
     /* ================= init ================= */
@@ -55,8 +56,9 @@ class ExceptionUnit extends Module with InstructionConstants {
     io.regWrite.id := 0.U
     io.regWrite.value := 0.U
     io.regWrite.valid := false.B
-
-    io.redirect.target := 0x10000007.U
+    ctrlIO.clearICache := false.B
+    ctrlIO.flushPipeline := false.B
+    io.redirect.target := 0x10000007L.U
     io.redirect.valid := false.B
 
     when(io.exc.valid){
@@ -150,7 +152,10 @@ class ExceptionUnit extends Module with InstructionConstants {
     /* ================ Post Decode ==============*/
     val intoException = !io.exc.csrTag && io.exc.valid
     val returnFromException = io.exc.csrTag && io.exc.valid && (io.reference.csrType === MRET || io.reference.csrType === SRET) && !intoException
-    val conductCsrInst = io.exc.valid && io.exc.csrTag && !returnFromException && !intoException
+    val conductCsrInst = io.exc.valid && io.exc.csrTag && !returnFromException && !intoException && (
+        io.reference.csrType === CSRRW || io.reference.csrType === CSRRS || io.reference.csrType === CSRRC || io.reference.csrType === CSRRWI || io.reference.csrType === CSRRSI || io.reference.csrType === CSRRCI
+    )
+    val conductFencei = !intoException && !returnFromException && io.reference.csrType === FENCEI
     ctrlIO.flushPipeline := intoException || returnFromException
     when (io.exc.valid) {
         if (DebugConfig.printException) {
@@ -264,7 +269,7 @@ class ExceptionUnit extends Module with InstructionConstants {
             status.mpp,
             status.spp
         )
-    }.elsewhen(conductCsrInst){
+    }.otherwise{
         nextPC := io.exc.precisePC + 4.U
         nextPrivilegeLevel := globalPrivilegeLevel
     }
@@ -308,7 +313,7 @@ class ExceptionUnit extends Module with InstructionConstants {
         DebugUtils.Print(cf" mepc: 0x${Hexadecimal(mepc_reg)}")
     }
 
-    val exceptionValue = Mux(io.exc.exceptionCode === EC_ILLEGAL, io.rawExceptionValue1, io.exc.rawExceptionValue2)
+    val exceptionValue = Mux(io.exc.exceptionCode === EC_ILLEGAL, io.rawExceptionValue1, io.exc.rawExceptionValue2) // FIXME: 这里之后还要完善
     when(intoException){
         when(delegException){
             scause := Cat(interruptOccur, Fill(27, 0.U), generalizedExceptionCode(3, 0)).asTypeOf(new csr_cause_t)
@@ -335,7 +340,7 @@ class ExceptionUnit extends Module with InstructionConstants {
             status.spie := true.B
             status.spp := U_LEVEL
         }
-    }.elsewhen(io.exc.valid && io.reference.writeCsrEn && canWriteCsr){
+    }.elsewhen(conductCsrInst && io.reference.writeCsrEn && canWriteCsr){
         switch(io.reference.csrAddr){
             is(CSR_MSTATUS_ADDR){
                 status := csrWriteData.asTypeOf(new csr_status_t)
@@ -413,5 +418,7 @@ class ExceptionUnit extends Module with InstructionConstants {
                 stval_reg := csrWriteData
             }
         }
+    }.elsewhen(conductFencei) {
+        ctrlIO.clearICache := true.B
     }
 }

@@ -18,6 +18,7 @@ class Backend extends Module {
 
   val ctrlIO = IO(new Bundle {
     val flushPipeline = Output(Bool())
+    val clearICache = Output(Bool())
   })
 
 
@@ -181,4 +182,6 @@ class Backend extends Module {
    }
   }
 
+  // FENCEI signal 
+  ctrlIO.clearICache := excu.ctrlIO.clearICache
 }
