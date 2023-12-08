@@ -156,7 +156,7 @@ class ExceptionUnit extends Module with InstructionConstants {
         io.reference.csrType === CSRRW || io.reference.csrType === CSRRS || io.reference.csrType === CSRRC || io.reference.csrType === CSRRWI || io.reference.csrType === CSRRSI || io.reference.csrType === CSRRCI
     )
     val conductFencei = !intoException && !returnFromException && io.reference.csrType === FENCEI
-    ctrlIO.flushPipeline := intoException || returnFromException
+    ctrlIO.flushPipeline := intoException || returnFromException || conductFencei
     when (io.exc.valid) {
         if (DebugConfig.printException) {
             DebugUtils.Print("[EXCU]!!!Post Decode")
