@@ -55,30 +55,43 @@ class DispatchUnit extends Module with InstructionConstants {
   val csrInstructionBuffer = RegInit(0.U.asTypeOf(new CsrInstruction))
   io.csr := csrInstructionBuffer
   
-  val isCsr = VecInit(io.in.map(x => x.valid && x.csrTag)).asUInt
-  val firstCsrIdx = PriorityEncoder(isCsr)
-  when(firstCsrIdx =/= 0.U) {
-    when(csrInstructionBuffer.csrType =/= CSRNONE) {
-      csrInstructionBuffer := io.in(firstCsrIdx - 1.U).GetCsrInstruction()
+  val isCsr = VecInit(io.in.map(x => x.valid && x.csrTag))
+
+  when (isCsr.reduce(_ || _)) {
+    if (DebugConfig.printDispatch) {
+      DebugUtils.Print(cf"dispatch isCsr: ${isCsr}")
     }
+    val firstCsrIdx = PriorityEncoder(isCsr.asUInt)
+    if (DebugConfig.printDispatch) {
+      DebugUtils.Print(cf"find a csr instruction at ${firstCsrIdx}, related isCsr.asUInt: ${isCsr.asUInt}")
+    }
+    when(csrInstructionBuffer.csrType === CSRNONE) {
+      csrInstructionBuffer := io.in(firstCsrIdx).GetCsrInstruction()
+    }
+    if (DebugConfig.printDispatch) {
+      DebugUtils.Print(cf"this csr instruction is:")
+      DebugUtils.Print(cf"csraddr: ${io.in(firstCsrIdx).csrAddr}, csrtype: ${io.in(firstCsrIdx).csrType}, csruimm: ${io.in(firstCsrIdx).csrUimm}, csrWen: ${io.in(firstCsrIdx).writeCsrEn}, csrRen: ${io.in(firstCsrIdx).readCsrEn}, csrPrs: ${io.in(firstCsrIdx).prs1}, csrPrd: ${io.in(firstCsrIdx).prd}")
+    } 
   }
 
-  if (DebugConfig.printDispatch) {
-    for(i <- 0 until BackendConfig.intPipelineNum) {
-      when(io.ints(i).valid) {
-        DebugUtils.Print(cf"intpipeline${i} dispatched, robidx: ${io.ints(i).bits.robIdx}")
-      }
-    }
-    for(i <- 0 until FrontendConfig.decoderNum) {
-      when(io.mem(i).valid) {
-        DebugUtils.Print(cf"mem dispatched, robidx: ${io.mem(i).bits.robIdx} type: ${io.mem(i).bits.memType} addr_preg: ${io.mem(i).bits.prs1} value_preg: ${io.mem(i).bits.prd_or_prs2}")
-      }
-    }
-    // print isMem
-    DebugUtils.Print(
-      cf"dispatch isMem: ${isMem.asTypeOf(Vec(FrontendConfig.decoderNum, Bool()))} isInt: ${isInt.asTypeOf(Vec(FrontendConfig.decoderNum, Bool()))}"
-    )
-  }
+
+
+  // if (DebugConfig.printDispatch) {
+  //   for(i <- 0 until BackendConfig.intPipelineNum) {
+  //     when(io.ints(i).valid) {
+  //       DebugUtils.Print(cf"intpipeline${i} dispatched, robidx: ${io.ints(i).bits.robIdx}")
+  //     }
+  //   }
+  //   for(i <- 0 until FrontendConfig.decoderNum) {
+  //     when(io.mem(i).valid) {
+  //       DebugUtils.Print(cf"mem dispatched, robidx: ${io.mem(i).bits.robIdx} type: ${io.mem(i).bits.memType} addr_preg: ${io.mem(i).bits.prs1} value_preg: ${io.mem(i).bits.prd_or_prs2}")
+  //     }
+  //   }
+  //   // print isMem
+  //   DebugUtils.Print(
+  //     cf"dispatch isMem: ${isMem.asTypeOf(Vec(FrontendConfig.decoderNum, Bool()))} isInt: ${isInt.asTypeOf(Vec(FrontendConfig.decoderNum, Bool()))}"
+  //   )
+  // }
 
   // TODO : 根据队列剩余容量的Dispatch
   var restInt = isInt

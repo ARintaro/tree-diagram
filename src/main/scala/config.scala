@@ -15,29 +15,29 @@ object DebugConfig {
   var printBegin = 50000.U
   var printEnd = 100000.U
 
-  var printRenameTable = false
-  var printRenameUnitIn = false
+  var printRenameTable = true
+  var printRenameUnitIn = true
   
-  var printRenameAlloc = false
-  var printRenameFree = false
+  var printRenameAlloc = true
+  var printRenameFree = true
 
-  var printRenameNew = false
-  var printDispatch = false
+  var printRenameNew = true
+  var printDispatch = true
   var printWriteBack = false
   var printIssue = false
-  var printPreg = false
+  var printPreg = true
   var printLreg = false
   var printFetch = false
   var printRedirect = false
-  var printFlush = false
+  var printFlush = true
   var printBusError = true
 
-  val printRob = false
+  val printRob = true
   val printRobNew = false
   val printPipeIns = false
   val printStoreBuffer = false
 
-  val printException = false
+  val printException = true
 
   var printBusy = false
 }

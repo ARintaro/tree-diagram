@@ -154,5 +154,21 @@ class Backend extends Module {
     intPipes(i).ctrlIO.flush := flushDelay
   }
   memPipe.ctrlIO.flush := flushDelay
-  
+
+  // debug: print flush
+  if (DebugConfig.printFlush) {
+    when(doFlush) {
+      DebugUtils.Print("Backend Flush !!")
+    }
+    when(excu.ctrlIO.flushPipeline) {
+      DebugUtils.Print("Backend Flush by Exception !!")
+    }
+    when(rob.ctrlIO.flushPipeline) {
+      DebugUtils.Print("Backend Flush by ROB !!")
+    }
+    when(flushDelay) {
+     DebugUtils.Print("Backend Flush Delay !!")
+   }
+  }
+
 }

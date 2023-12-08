@@ -27,7 +27,7 @@ class Timer extends Module {
     val mtimecmp = RegInit(0.U(64.W))
 
     // core logic of time interrupt
-    val timerInterrupt = WireInit(mtimecmp <= mtime)
+    val timerInterrupt = WireInit(mtimecmp < mtime)
     BoringUtils.addSource(timerInterrupt, "timerInterrupt")
     
     // The bus might send load or store instructions

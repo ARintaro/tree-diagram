@@ -150,16 +150,17 @@ trait InstructionConstants {
   // CSR指令类型
   val CSR_WIDTH = 4.W
   def CSRNONE = 0.U(CSR_WIDTH)
-  def CSRRS = 1.U(CSR_WIDTH)
-  def CSRRC = 2.U(CSR_WIDTH)
-  def CSRRWI = 3.U(CSR_WIDTH)
-  def CSRRSI = 4.U(CSR_WIDTH)
-  def CSRRCI = 5.U(CSR_WIDTH)
-  def MRET = 6.U(CSR_WIDTH)
-  def SRET = 7.U(CSR_WIDTH)
-  def ECALL = 8.U(CSR_WIDTH)
-  def EBREAK = 9.U(CSR_WIDTH)
-  def CSRRW = 10.U(CSR_WIDTH)
+  def CSRRW = 1.U(CSR_WIDTH)
+  def CSRRS = 2.U(CSR_WIDTH)
+  def CSRRC = 3.U(CSR_WIDTH)
+  def CSRRWI = 4.U(CSR_WIDTH)
+  def CSRRSI = 5.U(CSR_WIDTH)
+  def CSRRCI = 6.U(CSR_WIDTH)
+  def MRET = 7.U(CSR_WIDTH)
+  def SRET = 8.U(CSR_WIDTH)
+  def ECALL = 9.U(CSR_WIDTH)
+  def EBREAK = 10.U(CSR_WIDTH)
+  
 }
 
 // 解码单元解码出的指令

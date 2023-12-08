@@ -252,6 +252,8 @@ class ReorderBuffer extends Module with InstructionConstants {
       io.newException.rawExceptionValue2 := 0.U
       io.newException.csrTag := invalidEntry.csrTag
       commitValidsFinal(firstInvalidIdx) := true.B
+      // io.redirect.valid := false.B
+      // ctrlIO.flushPipeline := true.B
     }.elsewhen(!commitExcValid(firstInvalidIdx)) {
       io.newException.valid := true.B
       io.newException.exceptionCode := invalidEntry.exceptionCode

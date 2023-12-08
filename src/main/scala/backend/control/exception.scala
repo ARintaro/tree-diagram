@@ -56,7 +56,30 @@ class ExceptionUnit extends Module with InstructionConstants {
     io.regWrite.value := 0.U
     io.regWrite.valid := false.B
 
+    io.redirect.bits := 0x10000007.U
+    io.redirect.valid := false.B
 
+    when(io.exc.valid){
+        if (DebugConfig.printException) {
+            DebugUtils.Print("[EXCU]!!!Exception")
+            DebugUtils.Print(cf" valid: ${io.exc.valid}")
+            DebugUtils.Print(cf" precisePC: 0x${Hexadecimal(io.exc.precisePC)}")
+            DebugUtils.Print(cf" csrTag: ${io.exc.csrTag}")
+            DebugUtils.Print(cf" exceptionCode: ${io.exc.exceptionCode}")
+            DebugUtils.Print(cf" rawExceptionValue2: 0x${Hexadecimal(io.exc.rawExceptionValue2)}")
+
+            DebugUtils.Print("[EXCU]!!!Reference")
+            DebugUtils.Print(cf" csrType: ${io.reference.csrType}")
+            DebugUtils.Print(cf" csrAddr: ${io.reference.csrAddr}")
+            DebugUtils.Print(cf" prs: ${io.reference.prs}")
+            DebugUtils.Print(cf" prd: ${io.reference.prd}")
+            DebugUtils.Print(cf" uimm: ${io.reference.uimm}")
+            DebugUtils.Print(cf" writeCsrEn: ${io.reference.writeCsrEn}")
+            DebugUtils.Print(cf" readCsrEn: ${io.reference.readCsrEn}")
+            DebugUtils.Print(cf" regWrite id: ${io.regWrite}")
+
+        }
+    }
 
     /* ================ global privilege level ================ */
     val globalPrivilegeLevel = RegInit(M_LEVEL)
@@ -82,11 +105,62 @@ class ExceptionUnit extends Module with InstructionConstants {
     val mideleg_reg = RegInit(0.U(32.W)) // mideleg
     val mhartid_reg = RegInit(0.U(32.W)) // mhartid
 
+    val mstatusDebug = WireInit(0.U(32.W))
+    mstatusDebug := status.reg(M_LEVEL)
+    val mcauseDebug = WireInit(0.U(32.W))
+    mcauseDebug := mcause.asUInt
+    val mtvecDebug = WireInit(0.U(32.W))
+    mtvecDebug := mtvec.asUInt
+    val mepcDebug = WireInit(0.U(32.W))
+    mepcDebug := mepc_reg
+    val mieDebug = WireInit(0.U(32.W))
+    mieDebug := ie.reg(M_LEVEL)
+    val mipDebug = WireInit(0.U(32.W))
+    mipDebug := ip.reg(M_LEVEL)
+    val mscratchDebug = WireInit(0.U(32.W))
+    mscratchDebug := mscratch_reg
+    val mtvalDebug = WireInit(0.U(32.W))
+    mtvalDebug := mtval_reg
+    val medelegDebug = WireInit(0.U(32.W))
+    medelegDebug := medeleg_reg
+    val midelegDebug = WireInit(0.U(32.W))
+    midelegDebug := mideleg_reg
+    val mhartidDebug = WireInit(0.U(32.W))
+    mhartidDebug := mhartid_reg
+
+    val sstatusDebug = WireInit(0.U(32.W))
+    sstatusDebug := status.reg(S_LEVEL)
+    val scauseDebug = WireInit(0.U(32.W))
+    scauseDebug := scause.asUInt
+    val stvecDebug = WireInit(0.U(32.W))
+    stvecDebug := stvec.asUInt
+    val sepcDebug = WireInit(0.U(32.W))
+    sepcDebug := sepc_reg
+    val sieDebug = WireInit(0.U(32.W))
+    sieDebug := ie.reg(S_LEVEL)
+    val sipDebug = WireInit(0.U(32.W))
+    sipDebug := ip.reg(S_LEVEL)
+    val sscratchDebug = WireInit(0.U(32.W))
+    sscratchDebug := sscratch_reg
+    val stvalDebug = WireInit(0.U(32.W))
+    stvalDebug := stval_reg
+
+    // TODO: satp
+
     /* ================ Post Decode ==============*/
     val intoException = !io.exc.csrTag && io.exc.valid
     val returnFromException = io.exc.csrTag && io.exc.valid && (io.reference.csrType === MRET || io.reference.csrType === SRET) && !intoException
     val conductCsrInst = io.exc.valid && io.exc.csrTag && !returnFromException && !intoException
-    ctrlIO.flushPipeline := RegNext(io.exc.valid)
+    ctrlIO.flushPipeline := intoException || returnFromException
+    when (io.exc.valid) {
+        if (DebugConfig.printException) {
+            DebugUtils.Print("[EXCU]!!!Post Decode")
+            DebugUtils.Print(cf" intoException: ${intoException}")
+            DebugUtils.Print(cf" returnFromException: ${returnFromException}")
+            DebugUtils.Print(cf" conductCsrInst: ${conductCsrInst}")
+            DebugUtils.Print(cf" flushPipeline: ${ctrlIO.flushPipeline}")
+        }
+    }
     val uimm32 = Cat(Fill(27, 0.U), io.reference.uimm)
 
     /* ================ Interrupt logic ================ */
@@ -123,7 +197,7 @@ class ExceptionUnit extends Module with InstructionConstants {
     val canReadCsr = csrPrivilegeLevel <= globalPrivilegeLevel
     val canWriteCsr = csrPrivilegeLevel <= globalPrivilegeLevel && !csrReadOnly
 
-    /* ================ Read logic ================ */
+    /* ================ Read CSR logic ================ */
     val csrReadData = MuxLookup(io.reference.csrAddr, 0.U(32.W))(Seq(
         CSR_MSTATUS_ADDR -> status.reg(M_LEVEL),
         CSR_MTVEC_ADDR -> mtvec.asUInt,
@@ -150,9 +224,15 @@ class ExceptionUnit extends Module with InstructionConstants {
         io.regWrite.id := io.reference.prd
         io.regWrite.value := csrReadData
         io.regWrite.valid := true.B
+        if (DebugConfig.printException) {
+            DebugUtils.Print("[EXCU]!!!Read CSR; Write Register")
+            DebugUtils.Print(cf" id: ${io.regWrite.id}")
+            DebugUtils.Print(cf" value: 0x${Hexadecimal(io.regWrite.value)}")
+            DebugUtils.Print(cf" valid: ${io.regWrite.valid}")
+        }
     }
 
-    /* ==========Trap deleg logic ========== */
+    /* ========== Trap deleg logic ========== */
     val delegException = Wire(Bool())
     delegException := MuxCase(medeleg_reg(Cat(0.U, io.exc.exceptionCode)), Seq(
         (globalPrivilegeLevel === M_LEVEL) -> false.B,
@@ -188,11 +268,20 @@ class ExceptionUnit extends Module with InstructionConstants {
         nextPC := io.exc.precisePC + 4.U
         nextPrivilegeLevel := globalPrivilegeLevel
     }
-    globalPrivilegeLevel := nextPrivilegeLevel
-    io.redirect.valid := intoException || returnFromException
-    io.redirect.bits := nextPC
+    when (io.exc.valid) {
+        globalPrivilegeLevel := nextPrivilegeLevel
+        io.redirect.valid := true.B
+        io.redirect.bits := nextPC
+    }
+    when (io.exc.valid) {
+        if (DebugConfig.printException) {
+            DebugUtils.Print("[EXCU]!!!Redirect")
+            DebugUtils.Print(cf" valid: ${io.redirect.valid}")
+            DebugUtils.Print(cf" nextPC: 0x${Hexadecimal(io.redirect.bits)}")
+        }
+    }
 
-    /* ================ Write logic ================ */
+    /* ================ Write CSR logic ================ */
     val useUimm = io.reference.csrType === CSRRWI || io.reference.csrType === CSRRSI || io.reference.csrType === CSRRCI
     io.regRead.id := io.reference.prs
     val rawWriteData = Mux(useUimm, uimm32, io.regRead.value)
@@ -204,6 +293,21 @@ class ExceptionUnit extends Module with InstructionConstants {
         CSRRSI -> (csrReadData | rawWriteData),
         CSRRCI -> (csrReadData & (~rawWriteData))
     ))
+
+    when(io.exc.valid) {
+        if(DebugConfig.printException){
+            DebugUtils.Print("[EXCU]!!!Write CSR")
+            DebugUtils.Print(cf" csrWriteData: 0x${Hexadecimal(csrWriteData)}")
+        }
+    }
+
+    // print all csrs
+
+    if (DebugConfig.printException){
+        DebugUtils.Print("[EXCU]!!!ALL CSR !!!")
+        DebugUtils.Print(cf" mepc: 0x${Hexadecimal(mepc_reg)}")
+    }
+
     val exceptionValue = Mux(io.exc.exceptionCode === EC_ILLEGAL, io.rawExceptionValue1, io.exc.rawExceptionValue2)
     when(intoException){
         when(delegException){
@@ -252,6 +356,10 @@ class ExceptionUnit extends Module with InstructionConstants {
                 mscratch_reg := csrWriteData
             }
             is(CSR_MEPC_ADDR){
+                if (DebugConfig.printException) {
+                    DebugUtils.Print("[EXCU]!!!Write CSR MEPC")
+                    DebugUtils.Print(cf" csrWriteData: 0x${Hexadecimal(csrWriteData)}")
+                }
                 mepc_reg := Cat(csrWriteData(31, 1), 0.U(1.W))
             }
             is(CSR_MCAUSE_ADDR){
