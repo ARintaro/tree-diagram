@@ -260,6 +260,11 @@ class RenameTable extends Module {
 
 }
 
+class UndispachedCache extends Bundle {
+  val robIdx = UInt(BackendConfig.robIdxWidth)
+  val prd = UInt(BackendConfig.pregIdxWidth)
+}
+
 class RenameUnit extends Module
  with InstructionConstants {
   val io = IO(new Bundle {
@@ -279,29 +284,29 @@ class RenameUnit extends Module
   })
 
   val outBuffer = RegInit(VecInit(Seq.fill(FrontendConfig.decoderNum)(0.U.asTypeOf(new PipelineInstruction))))
+
+  val cache = RegInit(VecInit(Seq.fill(FrontendConfig.decoderNum)(0.U.asTypeOf(new UndispachedCache))))
+
+
   io.out <> outBuffer
   
   // 进行寄存器重命名
 
-  // 快速判断是否成功
-  // 0. 下一段ready，可以覆盖outBuffer
-  // 1. rob中有足够空间
-  // 2. RenameTable中可以进行写入寄存器的重命名
+  val firstInReg = RegInit(true.B)
 
-  // rob写入是否会成功由Decode阶段判断
-  // renameTable是否成功由 逻辑寄存器+rob num <= preg num保证
-  val succ = io.nextDone
-  io.done := succ
+  firstInReg := io.nextDone
+
+  io.done := io.nextDone
 
   for (i <- 0 until FrontendConfig.decoderNum) {
     // 连接renameTable
-    renameTableIO.news(i).valid := io.in(i).valid && io.in(i).writeRd && succ
+    renameTableIO.news(i).valid := io.in(i).valid && io.in(i).writeRd && firstInReg
     renameTableIO.news(i).lregIdx := io.in(i).rd
     renameTableIO.finds(i)(0).lregIdx := io.in(i).rs1
     renameTableIO.finds(i)(1).lregIdx := io.in(i).rs2
 
     // 写入rob
-    robIO.news(i).valid := io.in(i).valid && succ
+    robIO.news(i).valid := io.in(i).valid && firstInReg
     robIO.news(i).vaddr := io.in(i).vaddr
     robIO.news(i).writeRd := io.in(i).writeRd
     robIO.news(i).rdLidx := io.in(i).rd
@@ -323,11 +328,13 @@ class RenameUnit extends Module
 
   }
 
-  when (succ) {
+  when (io.nextDone) {
     for (i <- 0 until FrontendConfig.decoderNum) {
       val ins = Wire(new PipelineInstruction)
       ins.valid := io.in(i).valid
-      ins.robIdx := robIO.news(i).idx
+
+      ins.robIdx := Mux(firstInReg, robIO.news(i).idx, cache(i).robIdx)
+
       ins.aluType := io.in(i).aluType
       ins.bruType := io.in(i).bruType
       ins.selOP1 := io.in(i).selOP1
@@ -343,7 +350,8 @@ class RenameUnit extends Module
 
       ins.prs1 := renameTableIO.finds(i)(0).preg
       ins.prs2 := renameTableIO.finds(i)(1).preg
-      ins.prd := renameTableIO.news(i).pregIdx
+
+      ins.prd := Mux(firstInReg, renameTableIO.news(i).pregIdx, cache(i).prd)
 
       ins.csrTag := io.in(i).csrTag
       ins.csrType := io.in(i).csrType
@@ -360,7 +368,14 @@ class RenameUnit extends Module
       
       outBuffer(i) := ins
     }
-  } .elsewhen(ctrlIO.flush || io.nextDone) {
+  } .otherwise {
+    for (i <- 0 until FrontendConfig.decoderNum) {
+      cache(i).robIdx := robIO.news(i).idx
+      cache(i).prd := renameTableIO.news(i).pregIdx
+    }
+  }
+  
+  when(ctrlIO.flush) {
     outBuffer.foreach(x => {
       x.valid := false.B
     })

@@ -32,19 +32,26 @@ class DataCache extends Module {
 
   val f2_io = IO(new Bundle {
     val entry = Output(new DcacheEntry)
+    // 流水线优先级永远高于store buffer，因此无需ack
     val write = Input(new DcacheWriteInterface)
   })
 
-  val storeIO = IO(Input(new DcacheWriteInterface))
+  val storeIO = IO(new Bundle {
+    val write = Input(new DcacheWriteInterface)
+    val ack = Output(Bool())
+  })
 
-  val mem = SyncReadMem(BackendConfig.dataCacheSize, new DcacheEntry, SyncReadMem.ReadFirst)
+  val mem = Module(new Bram("Dcache", (new DcacheEntry).asUInt.getWidth, BackendConfig.dataCacheSize, (new DcacheEntry).asUInt.getWidth, false))
 
-  f2_io.entry := mem.read(f1_io.vaddr(BackendConfig.dcacheIndexEnd, BackendConfig.dcacheIndexBegin))
-
-  // when (storeIO.valid) {
-  //   mem.write(storeIO.paddr, storeIO.data)
-  // }
+  mem.io.readAddr := f1_io.vaddr(BackendConfig.dcacheIndexEnd, BackendConfig.dcacheIndexBegin)
+  f2_io.entry := mem.io.readData.asTypeOf(new DcacheEntry)
 
   
+  val write = Mux(f2_io.write.valid, f2_io.write, storeIO.write)
 
+  mem.io.writeEnable := write.valid
+  mem.io.writeAddr := write.paddr(BackendConfig.dcacheIndexEnd, BackendConfig.dcacheIndexBegin)
+  mem.io.writeData := write.get_entry().asUInt
+  
+  storeIO.ack := !f2_io.write.valid && storeIO.write.valid
 }

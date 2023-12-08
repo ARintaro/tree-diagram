@@ -3,7 +3,7 @@ module UartControllerBlackBox #(
     parameter ADDR_WIDTH = 32,
     parameter DATA_WIDTH = 32,
 
-    parameter CLK_FREQ = 80_000_000,
+    parameter CLK_FREQ = 90_000_000,
     parameter BAUD = 115200
 ) (
     // clk and reset
