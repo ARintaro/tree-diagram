@@ -43,6 +43,8 @@ object DebugConfig {
   val printException = true
 
   var printBusy = false
+
+  val printTimer = true
 }
 
 object SramConfig {

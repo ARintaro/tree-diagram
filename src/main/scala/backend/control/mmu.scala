@@ -49,5 +49,9 @@ class PageTableEntry extends Bundle {
 
 //     // TODO:  
 
+//     // 寄存器数组，全相连，替换算法见超标量
+//     // 64项，但参数化
+
+
 // }
 

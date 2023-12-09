@@ -25,10 +25,15 @@ class Timer extends Module {
     // create mtime & mtimecmp register
     val mtime = RegInit(0.U(64.W))
     val mtimecmp = RegInit(0.U(64.W))
+    
+    if (DebugConfig.printTimer) {
+        printf("mtime: %x\n", mtime)
+        printf("mtimecmp: %x\n", mtimecmp)
+    }
 
     // core logic of time interrupt
-    val timerInterrupt = WireInit(mtimecmp < mtime)
-    BoringUtils.addSource(timerInterrupt, "timerInterrupt")
+    val mtimeExceed = WireInit(mtimecmp <= mtime)
+    BoringUtils.addSource(mtimeExceed, "mtimeExceeded")
     
     // The bus might send load or store instructions
     // Aligned Addr might be in a 8-byte range for mtime and mtimecmp

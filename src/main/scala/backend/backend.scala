@@ -129,7 +129,7 @@ class Backend extends Module {
       DebugUtils.Print(cf"ROB Redirect : 0x${io.robRedirect.target}%x")
     }
 
-    when (io.exeRedirect.valid) {
+    when (io.excRedirect.valid) {
       DebugUtils.Print(cf"EXEU Redirect : 0x${io.robRedirect.target}%x")
     }
   }
@@ -188,4 +188,9 @@ class Backend extends Module {
 
   // FENCEI signal 
   ctrlIO.clearICache := excu.ctrlIO.clearICache
+
+  // timerInterrupt signal
+  dispatch.io.interruptInitializing := excu.io.interruptInitializing
+  excu.io.robEmpty := rob.io.robEmpty
+  rob.io.uncertainSignal := excu.io.interruptPending
 }

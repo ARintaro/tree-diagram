@@ -89,12 +89,19 @@ class ReorderBuffer extends Module with InstructionConstants {
     val empty = Output(Bool())
     val uncertern = Output(Bool())
     val count = Output(UInt(BackendConfig.robIdxWidth))
+
+    // val timerInterrupt = Input(Bool()) 
+    val robEmpty = Output(Bool())
+
+    val uncertainSignal = Input(Bool()) // NOTE: 这个信号仅仅为了解决时钟中断后，下一条指令的uncertain问题
   })
   
   val ctrlIO = IO(new Bundle {
     val flushPipeline = Output(Bool())
     // val conductCsr = Output(Bool())
   })
+
+  val afterInterruption = RegInit(false.B)
 
   io.newException.valid := false.B
   io.newException.exceptionCode := 0.U
@@ -285,6 +292,17 @@ class ReorderBuffer extends Module with InstructionConstants {
     }
   }
 
+  io.robEmpty := head === tail
+
+  // 时钟中断的提交，条件是ROB为空
+  // when(io.timerInterrupt && head === tail) {
+  //   io.newException.valid := true.B
+  //   io.newException.exceptionCode := ExceptionCode.IT_M_TIMER_INT 
+  //   io.newException.precisePC := entries(head).vaddr
+  //   io.newException.rawExceptionValue2 := 0.U
+  //   io.newException.csrTag := false.B
+  // }
+
   // 这里没有用寄存器暂存输出，时序扛不住的话需要加上
   commitsIO.zip(commitValidsFinal).zip(commitEntry).foreach {
     case ((out, valid), entry) => {
@@ -292,6 +310,9 @@ class ReorderBuffer extends Module with InstructionConstants {
       out.pregIdx := entry.rdPidx
       out.lregIdx := entry.rdLidx
     } 
+  }
+  when (PopCount(commitValidsFinal) =/= 0.U) {
+    afterInterruption := false.B
   }
 
   io.commitsStoreBuffer.zip(commitValidsFinal).zip(commitEntry).foreach {
@@ -301,11 +322,15 @@ class ReorderBuffer extends Module with InstructionConstants {
     }
   }
 
-  io.uncertern := commitValidsFinal.zip(commitEntry).map{
+  when (io.uncertainSignal){
+    afterInterruption := true.B
+  }
+
+  io.uncertern := (commitValidsFinal.zip(commitEntry).map{
     case (valid, entry) => {
       valid && (entry.storeType === STORE_MMIO || entry.storeType === LOAD_MMIO) 
     }
-  }.reduce(_ || _)
+  }.reduce(_ || _)) || afterInterruption
 
   head := head + PopCount(commitValidsFinal)
 
@@ -320,8 +345,7 @@ class ReorderBuffer extends Module with InstructionConstants {
   } .otherwise {
     when (flush) {
       recover := true.B
-      head := 0.U
-      tail := 0.U
+      head := tail // NOTE: 保证即便flush过，entries(head)依然是最近的一条提交过的指令
     }
   }
 
