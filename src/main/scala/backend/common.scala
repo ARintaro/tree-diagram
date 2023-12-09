@@ -25,6 +25,13 @@ object BackendUtils {
 
   // 广播后的下一个周期依赖指令才能够发射
   def BroadcastWakeup(index: Int, preg: UInt, valid : Bool) = {
+    if (DebugConfig.printWakeup) {
+      when (valid) {
+        DebugUtils.Print(
+          cf"[wakeup] Preg${preg} is ready, wakeup${index} is broadcasted"
+        )
+      }
+    }
     BoringUtils.addSource(preg, GetWakeupName(index))
     BoringUtils.addSource(valid, GetWakeupValidName(index))
   }

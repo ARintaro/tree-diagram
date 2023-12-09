@@ -45,6 +45,14 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   when(f0_done) {
     f0_ins := io.in.bits
     f0_valid := io.in.valid
+
+    if (DebugConfig.printMem) {
+      when (f0_valid) {
+        DebugUtils.Print(
+          cf"[mem] Pipe${index} Issue, robIdx: ${io.in.bits.robIdx}"
+        )
+      }
+    }
   }
 
   // F1
@@ -197,6 +205,8 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
       // TODO : LOAD_MMIO
       f3_store_type_wire := Mux(io.bus.mmio, LOAD_MMIO, LOAD_RAM)
 
+      DebugUtils.Print(cf"[Mem Cache Find] paddr 0x${f3_word_paddr_wire}%x  paddr_tag entry_tag 0x${io.cacheResult.tag}%x data 0x${io.cacheResult.data}%x, bytes ${io.cacheResult.bytesEnable}")
+
       when(io.findStore.valid && ~io.bus.mmio) {
         // 在 Store Buffer 中找到数据
 
@@ -216,7 +226,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
           f3_valid := false.B
         }
 
-      }. elsewhen((io.cacheResult.bytesEnable & f2_bytes) === f2_bytes && io.cacheResult.tag === f3_word_paddr_wire(BackendConfig.dcacheTagEnd, BackendConfig.dcacheIndexBegin)) {
+      }. elsewhen((io.cacheResult.bytesEnable & f2_bytes) === f2_bytes && io.cacheResult.tag === f3_word_paddr_wire(BackendConfig.dcacheTagEnd, BackendConfig.dcacheTagBegin)) {
         assert(!io.bus.mmio)
         // Dcache Hit
         f3_valid := true.B
@@ -254,6 +264,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   // F4 写回ROB
 
   val f4_write_rd_wire = WireInit(f3_writeRd && f3_valid)
+  
 
   val f4_raw_data_wire = Mux(f3_bus_data, io.bus.dataRead, f3_data)
   val f4_shift_data_wire = f4_raw_data_wire >> (f3_addrLow2 << 3)
@@ -283,8 +294,8 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   io.robComplete.csrTag := false.B
 
   // LOAD出的数据写回缓存
-  io.cacheWrite.valid := f3_storeType === LOAD_RAM
-  io.cacheWrite.paddr := f3_word_paddr_wire
+  io.cacheWrite.valid := f3_storeType === LOAD_RAM && f4_write_rd_wire
+  io.cacheWrite.paddr := f3_word_addr
   io.cacheWrite.bytesEnable := "b1111".U
   io.cacheWrite.data := f4_raw_data_wire
   

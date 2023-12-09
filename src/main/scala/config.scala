@@ -14,7 +14,7 @@ object DebugConfig {
   var debug = true
   // 1520984
 
-  var printPart = true
+  var printPart = false
   var printBegin = 20000.U
   var printEnd = 400000.U
 
@@ -27,22 +27,23 @@ object DebugConfig {
   var printRenameNew = false
   var printDispatch = false
   var printWriteBack = true
-  var printIssue = false
+  var printIssue = true
   var printPreg = false
   var printLreg = false
-  var printFetch = false
-  var printRedirect = false
-  var printFlush = false
+  var printFetch = true
+  var printRedirect = true
+  var printFlush = true
   var printBusError = false
 
   val printRob = true
-  val printRobNew = false
-  val printPipeIns = false
+  val printRobNew = true
+  val printPipeIns = true
   val printStoreBuffer = true
 
   val printException = false
 
-  var printBusy = false
+  var printBusy = true
+  val printWakeup = true
   val printMem = true
 }
 

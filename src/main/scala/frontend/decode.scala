@@ -176,11 +176,12 @@ class DecodeUnit extends Module {
     //                            && wrongInstructionBuffer === 0.U,
     //                            io.in(i).bits.inst, 
     //                            wrongInstructionBuffer)
+    DebugUtils.Print(cf"Decode -> Rename Buffer ${i} ${outBuffer(i)}")
   }
 
   when (io.nextDone) {
     outBuffer := decoders.map(_.out)
-    outBufferCount := PopCount(decoders.map(_.out.valid))
+    outBufferCount := inCount
   }
 
   when (ctrlIO.flush) {

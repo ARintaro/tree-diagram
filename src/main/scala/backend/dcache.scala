@@ -45,7 +45,7 @@ class DataCache extends Module {
   val entry = WireInit(0.U.asTypeOf(new DcacheEntry))
   val entrySize = 1 << log2Ceil(entry.getWidth)
 
-  val mem = Module(new Bram("DcacheRam", entrySize, BackendConfig.dataCacheSize, entrySize, false))
+  val mem = Module(new Bram("DcacheRam", entrySize, BackendConfig.dataCacheSize, entrySize, true))
 
   mem.io.readAddr := f1_io.vaddr(BackendConfig.dcacheIndexEnd, BackendConfig.dcacheIndexBegin)
   f2_io.entry := mem.io.readData.asTypeOf(new DcacheEntry)
@@ -56,6 +56,12 @@ class DataCache extends Module {
   mem.io.writeEnable := write.valid
   mem.io.writeAddr := write.paddr(BackendConfig.dcacheIndexEnd, BackendConfig.dcacheIndexBegin)
   mem.io.writeData := write.get_entry().asUInt
+
+  if (DebugConfig.printMem) {
+    when (write.valid) {
+      DebugUtils.Print(cf"dcache write addr 0x${mem.io.writeAddr}%x tag 0x${write.get_entry().tag}%x data 0x${write.get_entry().data}%x bytes data 0x${write.get_entry().bytesEnable}%x")
+    }
+  }
   
   storeIO.ack := !f2_io.write.valid && storeIO.write.valid
   mem.ctrlIO.clear := false.B

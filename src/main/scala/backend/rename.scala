@@ -263,6 +263,8 @@ class RenameTable extends Module {
 class UndispachedCache extends Bundle {
   val robIdx = UInt(BackendConfig.robIdxWidth)
   val prd = UInt(BackendConfig.pregIdxWidth)
+  val prs1 = UInt(BackendConfig.pregIdxWidth)
+  val prs2 = UInt(BackendConfig.pregIdxWidth)
 }
 
 class RenameUnit extends Module
@@ -298,6 +300,8 @@ class RenameUnit extends Module
 
   io.done := io.nextDone
 
+  DebugUtils.Print(cf"RenameUnit firstInReg: ${firstInReg} nextDone: ${io.nextDone}")
+
   for (i <- 0 until FrontendConfig.decoderNum) {
     // 连接renameTable
     renameTableIO.news(i).valid := io.in(i).valid && io.in(i).writeRd && firstInReg
@@ -326,6 +330,7 @@ class RenameUnit extends Module
       }
     }
 
+    DebugUtils.Print(cf"Rename -> Dispatch Buffer ${i} ${outBuffer(i)}")
   }
 
   when (io.nextDone) {
@@ -348,8 +353,8 @@ class RenameUnit extends Module
       ins.memType := io.in(i).memType
       ins.extType := io.in(i).extType
 
-      ins.prs1 := renameTableIO.finds(i)(0).preg
-      ins.prs2 := renameTableIO.finds(i)(1).preg
+      ins.prs1 := Mux(firstInReg, renameTableIO.finds(i)(0).preg, cache(i).prs1)
+      ins.prs2 := Mux(firstInReg, renameTableIO.finds(i)(1).preg, cache(i).prs2)
 
       ins.prd := Mux(firstInReg, renameTableIO.news(i).pregIdx, cache(i).prd)
 
@@ -369,9 +374,13 @@ class RenameUnit extends Module
       outBuffer(i) := ins
     }
   } .otherwise {
-    for (i <- 0 until FrontendConfig.decoderNum) {
-      cache(i).robIdx := robIO.news(i).idx
-      cache(i).prd := renameTableIO.news(i).pregIdx
+    when (firstInReg) {
+      for (i <- 0 until FrontendConfig.decoderNum) {
+        cache(i).robIdx := robIO.news(i).idx
+        cache(i).prd := renameTableIO.news(i).pregIdx
+        cache(i).prs1 := renameTableIO.finds(i)(0).preg
+        cache(i).prs2 := renameTableIO.finds(i)(1).preg
+      }
     }
   }
   

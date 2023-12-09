@@ -135,7 +135,7 @@ class Backend extends Module {
       DebugUtils.Print(cf"ROB Redirect : 0x${io.robRedirect.target}%x")
     }
 
-    when (io.exeRedirect.valid) {
+    when (io.excRedirect.valid) {
       DebugUtils.Print(cf"EXEU Redirect : 0x${io.robRedirect.target}%x")
     }
   }

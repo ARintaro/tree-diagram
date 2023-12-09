@@ -37,6 +37,8 @@ class DispatchUnit extends Module with InstructionConstants {
   val succ = intSucc && memSucc
   io.done := succ
 
+  DebugUtils.Print(cf"DispatchUnit succ: ${succ} intSucc: ${intSucc} memSucc: ${memSucc}")
+
   intIssue.foreach(_ := false.B)
   memIssue.foreach(_ := false.B)
   io.ints.zip(intIssue).foreach {

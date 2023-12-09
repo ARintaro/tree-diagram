@@ -55,6 +55,19 @@ class CompressedIssueQueue[T <: Data with IssueInstruction](
     }
   }
 
+  if (DebugConfig.printIssue) {
+    when (doEnq) {
+      DebugUtils.Print(cf"int compressed enq ${io.enq.bits}")
+    }
+    DebugUtils.Print(cf"==== Int Queues ====")
+    for (i <- 0 until size) {
+      when(valid(i)) {
+        DebugUtils.Print(cf"${i} ${ram(i)}")
+      }
+    }
+    DebugUtils.Print(cf"==== Int Queues  END ====")
+  }
+
   when(doEnq) {
     val enqIdx = Mux(issueSucc, firstEmptyIdx - 1.U, firstEmptyIdx)
     ram(enqIdx) := io.enq.bits
@@ -156,6 +169,18 @@ class FifoCompressedIssueQueue[T <: Data with IssueInstruction](
   for (i <- 0 until enqPort) {
     when (io.enq(i).valid && io.enq(i).ready) {
       ram(enqIdx + i.U) := io.enq(i).bits
+      
+      if (DebugConfig.printIssue) {
+        DebugUtils.Print(cf"fifo compressed enq ${i} ${io.enq(i).bits}")
+      }
+    }
+  }
+
+  if (DebugConfig.printIssue) {
+    for (i <- 0 until size) {
+      when(valid(i)) {
+        DebugUtils.Print(cf"fifo compressed queue entry ${i} ${ram(i)}")
+      }
     }
   }
 
