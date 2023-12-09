@@ -11,10 +11,10 @@ object GenConfig {
 }
 
 object DebugConfig {
-  var debug = true
+  var debug = false
   // 1520984
 
-  var printPart = true
+  var printPart = false
   var printBegin = 200000.U
   var printEnd = 800000.U
 
@@ -25,13 +25,13 @@ object DebugConfig {
   var printRenameFree = false
 
   var printRenameNew = false
-  var printDispatch = false
-  var printWriteBack = true
+  var printDispatch = true
+  var printWriteBack = false
   var printIssue = true
   var printPreg = false
   var printLreg = false
-  var printFetch = true
-  var printRedirect = true
+  var printFetch = false
+  var printRedirect = false
   var printFlush = true
   var printBusError = false
 
@@ -40,10 +40,10 @@ object DebugConfig {
   val printPipeIns = true
   val printStoreBuffer = true
 
-  val printException = false
+  val printException = true
 
   var printBusy = true
-  val printWakeup = true
+  val printWakeup = false
   val printMem = true
 
   val printTimer = true
@@ -140,7 +140,7 @@ object FrontendConfig {
 
 object BackendConfig {
   val physicalRegNum = 64
-  val robSize = 32
+  val robSize = 8
 
   val pregIdxWidth = log2Ceil(physicalRegNum).W
   val robIdxWidth = log2Ceil(robSize).W

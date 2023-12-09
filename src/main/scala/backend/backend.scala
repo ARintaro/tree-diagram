@@ -199,5 +199,5 @@ class Backend extends Module {
   // timerInterrupt signal
   dispatch.io.interruptInitializing := excu.io.interruptInitializing
   excu.io.robEmpty := rob.io.robEmpty
-  rob.io.uncertainSignal := excu.io.interruptPending
+  rob.io.interruptPending := excu.io.interruptPending
 }

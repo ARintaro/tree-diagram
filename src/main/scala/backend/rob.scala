@@ -93,7 +93,7 @@ class ReorderBuffer extends Module with InstructionConstants {
     // val timerInterrupt = Input(Bool()) 
     val robEmpty = Output(Bool())
 
-    val uncertainSignal = Input(Bool()) // NOTE: 这个信号仅仅为了解决时钟中断后，下一条指令的uncertain问题
+    val interruptPending = Input(Bool())
   })
   
   val ctrlIO = IO(new Bundle {
@@ -240,6 +240,7 @@ class ReorderBuffer extends Module with InstructionConstants {
   val invalidEntry = commitEntry(firstInvalidIdx)
   
   io.redirect.target := 0x10000001L.U
+  io.newException.precisePC := entries(head - 1.U).jumpTarget
   
   /* ================ 重定向逻辑 ================ */
   // 只要有一个指令的commitValidsFinal为False，就需要重定向并冲刷流水线
@@ -311,9 +312,6 @@ class ReorderBuffer extends Module with InstructionConstants {
       out.lregIdx := entry.rdLidx
     } 
   }
-  when (PopCount(commitValidsFinal) =/= 0.U) {
-    afterInterruption := false.B
-  }
 
   io.commitsStoreBuffer.zip(commitValidsFinal).zip(commitEntry).foreach {
     case ((out, valid), entry) => {
@@ -322,34 +320,38 @@ class ReorderBuffer extends Module with InstructionConstants {
     }
   }
 
-  when (io.uncertainSignal){
-    afterInterruption := true.B
+  val afterInterrupt = RegInit(false.B)
+  when (io.interruptPending) {
+    afterInterrupt := true.B
   }
 
   io.uncertern := (commitValidsFinal.zip(commitEntry).map{
     case (valid, entry) => {
       valid && (entry.storeType === STORE_MMIO || entry.storeType === LOAD_MMIO) 
     }
-  }.reduce(_ || _)) || afterInterruption
+  }.reduce(_ || _)) || afterInterrupt
+
+  when (PopCount(commitValidsFinal) >= 0.U && afterInterrupt) {
+    afterInterrupt := false.B
+  }
 
   head := head + PopCount(commitValidsFinal)
 
   val flush = ctrlIO.flushPipeline
   
-  val recover = RegInit(false.B)
+  val recover = RegInit(0.U(2.W))
 
-  when (recover) {
-    recover := false.B
-    head := 0.U
-    tail := 0.U
-  } .otherwise {
-    when (flush) {
-      recover := true.B
-      head := tail // NOTE: 保证即便flush过，entries(head)依然是最近的一条提交过的指令
-    }
+  when (recover =/= 0.U) {
+    head := tail
+    recover := recover >> 1
+  } 
+  when (flush) {
+    recover := "b11".U
+    head := tail
   }
 
   if (DebugConfig.printRob) {
+    DebugUtils.Print(cf"RobIdx head: ${head} tail: ${tail} count: ${io.count}")
     when(head =/= tail) {
       DebugUtils.Print("=== ROB ===")
       DebugUtils.Print(cf"IDX | OVER | Jv | vaddr | store_type")

@@ -337,7 +337,7 @@ class ExceptionUnit extends Module with InstructionConstants {
     // }
 
     val exceptionValue = Mux(io.exc.exceptionCode === EC_ILLEGAL, io.rawExceptionValue1, io.exc.rawExceptionValue2) // FIXME: 这里之后还要完善
-    when(intoException){
+    when(intoException || interruptPending){
         when(delegException){
             scause := Cat(interruptPending, Fill(27, 0.U), generalizedExceptionCode(3, 0)).asTypeOf(new csr_cause_t)
             stval_reg := exceptionValue
