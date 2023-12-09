@@ -45,6 +45,8 @@ object DebugConfig {
   var printBusy = true
   val printWakeup = true
   val printMem = true
+
+  val printTimer = true
 }
 
 object SramConfig {

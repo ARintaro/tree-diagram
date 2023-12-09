@@ -42,8 +42,10 @@ class ExceptionUnit extends Module with InstructionConstants {
 
         val regRead = new RegisterReadRequest
         val regWrite = new RegisterWriteRequest
-
+        val interruptInitializing = Output(Bool())
+        val interruptPending = Output(Bool())  // TODO: 这个信号最后可能不需要
         val redirect = Output(new RedirectRequest)
+        val robEmpty = Input(Bool())
     })
 
     val ctrlIO = IO(new Bundle {
@@ -150,13 +152,13 @@ class ExceptionUnit extends Module with InstructionConstants {
     // TODO: satp
 
     /* ================ Post Decode ==============*/
-    val intoException = !io.exc.csrTag && io.exc.valid
+    val intoException = !io.exc.csrTag && io.exc.valid // NOTE: 时钟中断也是广义异常，处理方式类似
     val returnFromException = io.exc.csrTag && io.exc.valid && (io.reference.csrType === MRET || io.reference.csrType === SRET) && !intoException
     val conductCsrInst = io.exc.valid && io.exc.csrTag && !returnFromException && !intoException && (
         io.reference.csrType === CSRRW || io.reference.csrType === CSRRS || io.reference.csrType === CSRRC || io.reference.csrType === CSRRWI || io.reference.csrType === CSRRSI || io.reference.csrType === CSRRCI
     )
-    val conductFencei = !intoException && !returnFromException && io.reference.csrType === FENCEI
-    ctrlIO.flushPipeline := intoException || returnFromException || conductFencei
+    val conductFencei = io.exc.valid && !intoException && !returnFromException && io.reference.csrType === FENCEI
+    
     when (io.exc.valid) {
         if (DebugConfig.printException) {
             DebugUtils.Print("[EXCU]!!!Post Decode")
@@ -170,17 +172,17 @@ class ExceptionUnit extends Module with InstructionConstants {
 
     /* ================ Interrupt logic ================ */
     val updateMtip = Wire(Bool())
-    BoringUtils.addSink(updateMtip, "timerInterrupt")
+    BoringUtils.addSink(updateMtip, "mtimeExceeded")
     ip.mtip := updateMtip
     val meiOccur = ie.meie & ip.meip
     val seiOccur = ie.seie & ip.seip
-    val mtiOccur = ie.mtie & ip.mtip
+    val mtiOccur = ie.mtie & ip.mtip // 时钟中断
     val stiOccur = ie.stie & ip.stip
     val msiOccur = ie.msie & ip.msip
     val ssiOccur = ie.ssie & ip.ssip
     val mInterrupt = meiOccur | mtiOccur | msiOccur
     val sInterrupt = seiOccur | stiOccur | ssiOccur
-    val interruptOccur = MuxCase(false.B, Seq(
+    io.interruptInitializing := MuxCase(false.B, Seq(
         (globalPrivilegeLevel === M_LEVEL) -> (mInterrupt & status.mie),
         (globalPrivilegeLevel === S_LEVEL) -> (mInterrupt | (sInterrupt & status.sie)),
         (globalPrivilegeLevel === U_LEVEL) -> (mInterrupt | sInterrupt)
@@ -194,7 +196,27 @@ class ExceptionUnit extends Module with InstructionConstants {
         stiOccur -> IT_S_TIMER_INT,
         ssiOccur -> IT_S_SOFT_INT
     ))
-    val generalizedExceptionCode = Mux(interruptOccur, interruptCode, io.exc.exceptionCode)
+
+    val interruptPending = RegInit(false.B)
+    when (interruptPending === false.B){
+        when (io.interruptInitializing && io.robEmpty){
+            interruptPending := true.B
+        }
+    }.otherwise{
+        interruptPending := false.B
+    }
+    io.interruptPending := interruptPending
+    val generalizedExceptionCode = Mux(interruptPending, interruptCode, io.exc.exceptionCode)
+
+    if (DebugConfig.printException) {
+        DebugUtils.Print(cf"Now is in state ${globalPrivilegeLevel}")
+        when(io.interruptInitializing) {
+            DebugUtils.Print("Interrupt Initializing")
+        }
+        when(interruptPending) {
+            DebugUtils.Print("Interrupt Pending")
+        }
+    }
 
     /* ================check privilege ================ */
     val csrReadOnly = io.reference.csrAddr(11, 10) === 3.U
@@ -230,7 +252,7 @@ class ExceptionUnit extends Module with InstructionConstants {
         io.regWrite.value := csrReadData
         io.regWrite.valid := true.B
         if (DebugConfig.printException) {
-            DebugUtils.Print("[EXCU]!!!Read CSR; Write Register")
+            DebugUtils.Print("[EXCU]Read CSR; Write Register")
             DebugUtils.Print(cf" id: ${io.regWrite.id}")
             DebugUtils.Print(cf" value: 0x${Hexadecimal(io.regWrite.value)}")
             DebugUtils.Print(cf" valid: ${io.regWrite.valid}")
@@ -241,13 +263,13 @@ class ExceptionUnit extends Module with InstructionConstants {
     val delegException = Wire(Bool())
     delegException := MuxCase(medeleg_reg(Cat(0.U, io.exc.exceptionCode)), Seq(
         (globalPrivilegeLevel === M_LEVEL) -> false.B,
-        interruptOccur -> mideleg_reg(Cat(0.U, interruptCode)),
+        interruptPending -> mideleg_reg(Cat(0.U, interruptCode)),
     ))
 
     /* ============ Redirect logic ============ */
     val nextPC = WireInit(0.U(32.W))
     val nextPrivilegeLevel = WireInit(globalPrivilegeLevel)
-    when(intoException){
+    when(intoException || interruptPending){
         nextPC := Mux(delegException,
             Mux(stvec.mode === 0.U,
             Cat(stvec.base, Fill(2, 0.U)),
@@ -273,14 +295,15 @@ class ExceptionUnit extends Module with InstructionConstants {
         nextPC := io.exc.precisePC + 4.U
         nextPrivilegeLevel := globalPrivilegeLevel
     }
-    when (io.exc.valid) {
+    when (io.exc.valid || interruptPending) {
         globalPrivilegeLevel := nextPrivilegeLevel
         io.redirect.valid := true.B
         io.redirect.target := nextPC
     }
+    ctrlIO.flushPipeline := intoException || returnFromException || conductFencei || interruptPending // flush logic
     when (io.exc.valid) {
         if (DebugConfig.printException) {
-            DebugUtils.Print("[EXCU]!!!Redirect")
+            DebugUtils.Print("[EXCU]Redirect")
             DebugUtils.Print(cf" valid: ${io.redirect.valid}")
             DebugUtils.Print(cf" nextPC: 0x${Hexadecimal(io.redirect.target)}")
         }
@@ -301,29 +324,29 @@ class ExceptionUnit extends Module with InstructionConstants {
 
     when(io.exc.valid) {
         if(DebugConfig.printException){
-            DebugUtils.Print("[EXCU]!!!Write CSR")
+            DebugUtils.Print("[EXCU]Write CSR; Read Register")
             DebugUtils.Print(cf" csrWriteData: 0x${Hexadecimal(csrWriteData)}")
         }
     }
 
     // print all csrs
 
-    if (DebugConfig.printException){
-        DebugUtils.Print("[EXCU]!!!ALL CSR !!!")
-        DebugUtils.Print(cf" mepc: 0x${Hexadecimal(mepc_reg)}")
-    }
+    // if (DebugConfig.printException){
+    //     DebugUtils.Print("[EXCU]ALL CSR")
+    //     DebugUtils.Print(cf" mepc: 0x${Hexadecimal(mepc_reg)}")
+    // }
 
     val exceptionValue = Mux(io.exc.exceptionCode === EC_ILLEGAL, io.rawExceptionValue1, io.exc.rawExceptionValue2) // FIXME: 这里之后还要完善
     when(intoException){
         when(delegException){
-            scause := Cat(interruptOccur, Fill(27, 0.U), generalizedExceptionCode(3, 0)).asTypeOf(new csr_cause_t)
+            scause := Cat(interruptPending, Fill(27, 0.U), generalizedExceptionCode(3, 0)).asTypeOf(new csr_cause_t)
             stval_reg := exceptionValue
             status.spp := globalPrivilegeLevel
             status.spie := status.sie
             sepc_reg := Cat(io.exc.precisePC(31, 1), 0.U(1.W))
             status.sie := false.B
         }.otherwise{
-            mcause := Cat(interruptOccur, Fill(27, 0.U), generalizedExceptionCode(3, 0)).asTypeOf(new csr_cause_t)
+            mcause := Cat(interruptPending, Fill(27, 0.U), generalizedExceptionCode(3, 0)).asTypeOf(new csr_cause_t)
             mtval_reg := exceptionValue
             status.mpp := globalPrivilegeLevel
             status.mpie := status.mie

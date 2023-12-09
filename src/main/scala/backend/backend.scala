@@ -195,4 +195,9 @@ class Backend extends Module {
 
   // FENCEI signal 
   ctrlIO.clearICache := excu.ctrlIO.clearICache
+
+  // timerInterrupt signal
+  dispatch.io.interruptInitializing := excu.io.interruptInitializing
+  excu.io.robEmpty := rob.io.robEmpty
+  rob.io.uncertainSignal := excu.io.interruptPending
 }
