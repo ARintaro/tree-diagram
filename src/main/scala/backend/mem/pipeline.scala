@@ -337,7 +337,6 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   }
 
   when(ctrlIO.flush) {
-    // io.bus.stb := false.B
     f0_valid := false.B
     f1_valid := false.B
     f2_valid := false.B
