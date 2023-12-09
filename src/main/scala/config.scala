@@ -15,8 +15,8 @@ object DebugConfig {
   // 1520984
 
   var printPart = true
-  var printBegin = 10000.U
-  var printEnd = 1000000.U
+  var printBegin = 20000.U
+  var printEnd = 400000.U
 
   var printRenameTable = false
   var printRenameUnitIn = false
@@ -24,25 +24,26 @@ object DebugConfig {
   var printRenameAlloc = false
   var printRenameFree = false
 
-  var printRenameNew = true
+  var printRenameNew = false
   var printDispatch = false
-  var printWriteBack = false
-  var printIssue = true
+  var printWriteBack = true
+  var printIssue = false
   var printPreg = false
   var printLreg = false
-  var printFetch = true
+  var printFetch = false
   var printRedirect = false
-  var printFlush = true
+  var printFlush = false
   var printBusError = false
 
   val printRob = true
-  val printRobNew = true
+  val printRobNew = false
   val printPipeIns = false
-  val printStoreBuffer = false
+  val printStoreBuffer = true
 
-  val printException = true
+  val printException = false
 
   var printBusy = false
+  val printMem = true
 }
 
 object SramConfig {
@@ -164,7 +165,7 @@ object BackendConfig {
   val dcacheIndexBegin = 2
   val dcacheIndexEnd = 2 + log2Ceil(dataCacheSize) - 1
   val dcacheTagBegin = dcacheIndexEnd + 1
-  val dcacheTagEnd = 32
+  val dcacheTagEnd = BusConfig.ADDR_WIDTH.get - 1
   val dcacheTagWidth = (dcacheTagEnd - dcacheTagBegin + 1).W
 
 

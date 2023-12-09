@@ -55,6 +55,7 @@ class Backend extends Module {
     )
   )
 
+  val dataCache = Module(new DataCache)
   val storeBuffer = Module(new CompressedStoreBuffer(findPortNum = 1)) // TODO : 1个findPortNum够用吗
   
   
@@ -110,7 +111,12 @@ class Backend extends Module {
   memPipe.io.newStore <> storeBuffer.io.news
   memPipe.io.bus <> io.devBus(0)
   memPipe.io.robHead := rob.io.head
-  memPipe.io.robEmpty := rob.io.empty
+  // memPipe.io.robEmpty := rob.io.empty
+  memPipe.io.cacheResult := dataCache.f2_io.entry
+  dataCache.f1_io.vaddr := memPipe.io.cacheFindVaddr
+  dataCache.f2_io.write := memPipe.io.cacheWrite
+
+  
 
   // ROB
   rob.commitsIO <> renameTable.io.commits
@@ -137,6 +143,7 @@ class Backend extends Module {
 
   // store buffer
   storeBuffer.busIO <> io.devBus(1)
+  storeBuffer.io.cache <> dataCache.storeIO
   
 
   // exception Unit
