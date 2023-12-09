@@ -314,9 +314,9 @@ class CompressedStoreBuffer(findPortNum : Int) extends Module {
     stores(enqIdx) := io.news.store
 
     if (DebugConfig.printStoreBuffer) {
-      DebugUtils.Print(
-        cf"store buffer enq, paddr: 0x${io.news.store.paddr}%x, 0xvalue: ${io.news.store.value}%x, bytes: ${io.news.store.bytes}"
-      )
+      // printf(
+      //   cf"store buffer enq, paddr: 0x${io.news.store.paddr}%x, 0xvalue: ${io.news.store.value}%x, bytes: ${io.news.store.bytes}\n"
+      // )
     }
   }
 

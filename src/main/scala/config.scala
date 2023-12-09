@@ -14,9 +14,9 @@ object DebugConfig {
   var debug = true
   // 1520984
 
-  var printPart = false
-  var printBegin = 20000.U
-  var printEnd = 400000.U
+  var printPart = true
+  var printBegin = 200000.U
+  var printEnd = 800000.U
 
   var printRenameTable = false
   var printRenameUnitIn = false

@@ -59,7 +59,7 @@ class DataCache extends Module {
 
   if (DebugConfig.printMem) {
     when (write.valid) {
-      DebugUtils.Print(cf"dcache write addr 0x${mem.io.writeAddr}%x tag 0x${write.get_entry().tag}%x data 0x${write.get_entry().data}%x bytes data 0x${write.get_entry().bytesEnable}%x")
+      // printf(cf"dcache write addr 0x${mem.io.writeAddr}%x tag 0x${write.get_entry().tag}%x data 0x${write.get_entry().data}%x bytes data 0x${write.get_entry().bytesEnable}%x\n")
     }
   }
   

@@ -153,13 +153,15 @@ class DecodeUnit extends Module {
   val decoders = VecInit(Seq.fill(FrontendConfig.decoderNum)(Module(new Decoder).io))
 
   val outBuffer = RegInit(VecInit(Seq.fill(FrontendConfig.decoderNum)(0.U.asTypeOf(new DecodedInstruction))))
-  val outBufferCount = RegInit(0.U)
+  val outBufferCount = RegInit(0.U(BackendConfig.robIdxWidth))
 
   val wrongInstructionBuffer = RegInit(0.U(InsConfig.INS_WIDTH))
   io.wrongInstruction := wrongInstructionBuffer
 
   val inCount = PopCount(io.in.map(_.valid))
-  val robSucc = inCount <= (BackendConfig.robSize - 1).U - io.robCount - outBufferCount
+  val robSucc = inCount + outBufferCount <= (BackendConfig.robSize - 1).U - io.robCount 
+
+  DebugUtils.Print(cf"robSucc ${robSucc} inCount ${inCount} robCount ${io.robCount} outBufferCount ${outBufferCount}")
   
   for (i <- 0 until FrontendConfig.decoderNum) {
     // 如果自己是气泡，不管后面准没准备好都可以ready
