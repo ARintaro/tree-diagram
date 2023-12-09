@@ -148,7 +148,7 @@ class Backend extends Module {
 
   // exception Unit
   val excu = Module(new ExceptionUnit)
-  excu.io.exc <> rob.io.newException
+  excu.io.exc := RegNext(rob.io.newException)
   excu.io.reference <> dispatch.io.csr
   excu.io.rawExceptionValue1 := 0.U // TODO: 接到前端
   excu.io.regRead <> registers.io.reads(BackendConfig.intPipelineNum + 1)(0)
@@ -157,12 +157,13 @@ class Backend extends Module {
   
 
   // global flush logic
-  val doFlush = RegNext(excu.ctrlIO.flushPipeline || rob.ctrlIO.flushPipeline)
+  val doFlush = RegNext(rob.ctrlIO.flushPipeline) || excu.ctrlIO.flushPipeline
   val flushDelay = RegNext(doFlush)
 
   ctrlIO.flushPipeline := doFlush
+
   io.robRedirect := RegNext(rob.io.redirect)
-  io.excRedirect := RegNext(excu.io.redirect)
+  io.excRedirect := excu.io.redirect
 
   renameTable.ctrlIO.recover := flushDelay
   renameUnit.ctrlIO.flush := flushDelay
@@ -174,6 +175,25 @@ class Backend extends Module {
     intPipes(i).ctrlIO.flush := flushDelay
   }
   memPipe.ctrlIO.flush := flushDelay
+
+  // 1
+  // rob提交，robflush，异常提交，
+
+  // 2
+  // rob接着flush，exce提交重定向，前端doFlush
+
+  // 3
+  // rob接着flush，后端flushDelay
+
+    // 1
+  // rob提交，robflush， 异常提交->写寄存器
+
+  // 2
+  // rob接着flush，前端doFlush，从寄存器exce提交重定向 -> 访问bram，rob重定向
+
+  // 3
+  // rob接着flush，后端flushDelay
+
 
   
 

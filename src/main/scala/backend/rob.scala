@@ -331,7 +331,7 @@ class ReorderBuffer extends Module with InstructionConstants {
     }
   }.reduce(_ || _)) || afterInterrupt
 
-  when (PopCount(commitValidsFinal) >= 0.U && afterInterrupt) {
+  when (commitValidsFinal(0) && afterInterrupt) {
     afterInterrupt := false.B
   }
 

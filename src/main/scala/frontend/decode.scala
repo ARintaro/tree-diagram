@@ -178,7 +178,7 @@ class DecodeUnit extends Module {
     //                            && wrongInstructionBuffer === 0.U,
     //                            io.in(i).bits.inst, 
     //                            wrongInstructionBuffer)
-    DebugUtils.Print(cf"Decode -> Rename Buffer ${i} ${outBuffer(i)}")
+    // DebugUtils.Print(cf"Decode -> Rename Buffer ${i} ${outBuffer(i)}")
   }
 
   when (io.nextDone) {

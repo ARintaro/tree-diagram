@@ -25,9 +25,9 @@ object DebugConfig {
   var printRenameFree = false
 
   var printRenameNew = false
-  var printDispatch = true
+  var printDispatch = false
   var printWriteBack = false
-  var printIssue = true
+  var printIssue = false
   var printPreg = false
   var printLreg = false
   var printFetch = false
@@ -35,18 +35,18 @@ object DebugConfig {
   var printFlush = true
   var printBusError = false
 
-  val printRob = true
-  val printRobNew = true
-  val printPipeIns = true
-  val printStoreBuffer = true
+  val printRob = false
+  val printRobNew = false
+  val printPipeIns = false
+  val printStoreBuffer = false
 
   val printException = true
 
-  var printBusy = true
+  var printBusy = false
   val printWakeup = false
-  val printMem = true
+  val printMem = false
 
-  val printTimer = true
+  val printTimer = false
 }
 
 object SramConfig {
@@ -140,7 +140,7 @@ object FrontendConfig {
 
 object BackendConfig {
   val physicalRegNum = 64
-  val robSize = 8
+  val robSize = 32
 
   val pregIdxWidth = log2Ceil(physicalRegNum).W
   val robIdxWidth = log2Ceil(robSize).W

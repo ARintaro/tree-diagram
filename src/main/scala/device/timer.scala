@@ -27,8 +27,8 @@ class Timer extends Module {
     val mtimecmp = RegInit(0.U(64.W))
     
     if (DebugConfig.printTimer) {
-        printf("mtime: %x\n", mtime)
-        printf("mtimecmp: %x\n", mtimecmp)
+        // printf("mtime: %x\n", mtime)
+        // printf("mtimecmp: %x\n", mtimecmp)
     }
 
     // core logic of time interrupt
