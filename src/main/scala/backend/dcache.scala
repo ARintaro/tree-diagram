@@ -8,6 +8,7 @@ class DcacheEntry extends Bundle {
   val tag = UInt(BackendConfig.dcacheTagWidth) 
   val bytesEnable = UInt(BusConfig.DATA_BYTES_NUM)
   val data = UInt(BusConfig.DATA_WIDTH)
+
 }
 
 class DcacheWriteInterface extends Bundle {
@@ -41,7 +42,10 @@ class DataCache extends Module {
     val ack = Output(Bool())
   })
 
-  val mem = Module(new Bram("Dcache", (new DcacheEntry).asUInt.getWidth, BackendConfig.dataCacheSize, (new DcacheEntry).asUInt.getWidth, false))
+  val entry = WireInit(0.U.asTypeOf(new DcacheEntry))
+  val entrySize = 1 << log2Ceil(entry.getWidth)
+
+  val mem = Module(new Bram("DcacheRam", entrySize, BackendConfig.dataCacheSize, entrySize, false))
 
   mem.io.readAddr := f1_io.vaddr(BackendConfig.dcacheIndexEnd, BackendConfig.dcacheIndexBegin)
   f2_io.entry := mem.io.readData.asTypeOf(new DcacheEntry)
@@ -54,4 +58,5 @@ class DataCache extends Module {
   mem.io.writeData := write.get_entry().asUInt
   
   storeIO.ack := !f2_io.write.valid && storeIO.write.valid
+  mem.ctrlIO.clear := false.B
 }

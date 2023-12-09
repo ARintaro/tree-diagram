@@ -4,7 +4,7 @@ module UartControllerBlackBox #(
     parameter DATA_WIDTH = 32,
 
     parameter CLK_FREQ = 90_000_000,
-    parameter BAUD = 115200
+    parameter BAUD = 1152000
 ) (
     // clk and reset
     input wire clk_i,

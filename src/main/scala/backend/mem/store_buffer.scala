@@ -220,6 +220,11 @@ class CompressedStoreBuffer(findPortNum : Int) extends Module {
     val news = Flipped(new NewStoreRequest)
     val commits = Vec(BackendConfig.maxCommitsNum, Flipped(new CommitStoreRequest))
     val finds = Vec(findPortNum, Flipped(new StoreFindRequest))
+
+    val cache = new Bundle {
+      val write = Output(new DcacheWriteInterface)
+      val ack = Input(Bool())
+    }
   })
 
   val busIO = IO(BusMasterInterface())
@@ -245,27 +250,39 @@ class CompressedStoreBuffer(findPortNum : Int) extends Module {
   io.news.succ := !valid(BackendConfig.storeBufferSize - 1)
   io.news.idx := DontCare
 
+  io.cache.write.valid := false.B
+  io.cache.write.paddr := DontCare
+  io.cache.write.data := DontCare
+  io.cache.write.bytesEnable := DontCare
+
   val deq = WireInit(false.B)
   val enq = io.news.valid && io.news.succ
   
   val busBusy = RegInit(false.B)
+  val sramAcked = RegInit(false.B)
+  val cacheAcked = RegInit(false.B)
   when (busBusy) {
-    busIO.stb := true.B
+    val sramAck = sramAcked | busIO.ack
+    val cacheAck = cacheAcked | io.cache.ack
+
+    busIO.stb := !sramAcked
     busIO.dataMode := true.B
     busIO.dataWrite := stores(0).value
     busIO.dataBytesSelect := stores(0).bytes
     busIO.addr := stores(0).paddr
 
-    when (busIO.ack) {
+    io.cache.write.valid := !cacheAcked
+    io.cache.write.paddr := stores(0).paddr
+    io.cache.write.data := stores(0).value
+    io.cache.write.bytesEnable := stores(0).bytes
+
+    sramAcked := sramAck
+    cacheAcked := cacheAck
+
+    when (sramAck && cacheAck) {
       busBusy := false.B
       deq := true.B
-      if (DebugConfig.printStoreBuffer) {
-        DebugUtils.Print(
-          cf"store buffer bus ack, paddr: 0x${stores(0).paddr}%x, value: ${stores(0).value}, bytes: ${stores(0).bytes}"
-        )
-      }
     }
-
   } .otherwise {
     when (commited(0)) {
       busBusy := true.B
@@ -273,7 +290,10 @@ class CompressedStoreBuffer(findPortNum : Int) extends Module {
       busIO.dataMode := true.B
       busIO.addr := stores(0).paddr
       busIO.dataWrite := stores(0).value
-      busIO.dataBytesSelect := stores(0).bytes      
+      busIO.dataBytesSelect := stores(0).bytes
+      
+      cacheAcked := busIO.mmio
+      sramAcked := false.B      
     }
   }
 
@@ -312,11 +332,13 @@ class CompressedStoreBuffer(findPortNum : Int) extends Module {
       stores.map(x => x.paddr === find.paddr)
     ).asUInt & valid.asUInt
     val findHit = findEq.orR
-    val findHitIdx = PriorityEncoder(findEq)
+    val findHitIdx = PriorityEncoder(findEq.asBools.reverse)
+
+    val reverseStore = VecInit(stores.reverse)
 
     find.valid := findHit
-    find.value := stores(findHitIdx).value
-    find.bytes := stores(findHitIdx).bytes
+    find.value := reverseStore(findHitIdx).value
+    find.bytes := reverseStore(findHitIdx).bytes
     find.empty := !valid(0)
   }
 

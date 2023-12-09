@@ -19,6 +19,7 @@ class BramConfig(_writeWidth : Int, _writeDepth : Int, _readWidth : Int) {
 
   def printMembers(): Unit = {
     println(s"type : Simple Dual Port Ram")
+    println(s"common clock")
     println(s"writeWidth : $writeWidth")
     println(s"writeDepth : $writeDepth")
     println(s"Read First Always Enabled")
