@@ -81,7 +81,7 @@ class SramWithArbiter(name : String, inputNum : Int) extends Module {
     val masters = Vec(inputNum, BusSlaveInterface())
   })
 
-  val sram = Module(new Sram(name))
+  val sram = Module(new SramController(name))
 
   val arbiter = Module(new BusArbiter(inputNum))
 

@@ -4,6 +4,7 @@ import chisel3._
 import chisel3.util._
 import core._
 import BusConfig._
+import chisel3.util.experimental.BoringUtils
 
 class TestBench extends Module {
   val io = IO(new Bundle {
@@ -35,6 +36,11 @@ class TestBench extends Module {
   } else {
     top.io.uart.rxd := DontCare
     io.uart_busy := DontCare
+
+    BoringUtils.addSource(io.uart_data, "uart_data")
+    BoringUtils.addSource(io.uart_start, "uart_start")
+    BoringUtils.addSink(io.uart_busy, "uart_busy")
+
   }
 
   

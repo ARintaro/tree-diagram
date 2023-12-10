@@ -6,7 +6,7 @@ import chisel3.util.isPow2
 
 object GenConfig {
   var verilator = false
-  var innerUartModel = false
+  var innerUartModel = true
 
 }
 

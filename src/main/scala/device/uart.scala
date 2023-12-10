@@ -3,6 +3,7 @@ package core
 import chisel3._
 import chisel3.util._
 import chisel3.util.experimental.BoringUtils
+import javax.swing.text.StyledEditorKit.BoldAction
 
 class ExternalUartInterface extends Bundle {
   val txd = Output(Bool())
@@ -42,13 +43,36 @@ class UartController extends Module {
     io.bus.ack := false.B
     io.bus.mmio := true.B
 
+    val dataReady = RegInit(false.B)
+    val data = RegInit(0.U(8.W))
+
+    val dataWire = Wire(UInt(8.W))
+    val startWire = Wire(Bool())
+    
+    BoringUtils.addSink(dataWire, "uart_data")
+    BoringUtils.addSink(startWire, "uart_start")
+    BoringUtils.addSource(dataReady, "uart_busy")
+
+    when (startWire) {
+      assert(!dataReady)
+      dataReady := true.B
+      data := dataWire
+    }
+
+    val dataOut = WireInit(0.U(8.W))
+    val dataOutReady = WireInit(false.B)
+
+    dontTouch(dataOut)
+    dontTouch(dataOutReady)
+
     when (busy) {
       busy := false.B
       io.bus.ack := true.B
       when (io.bus.dataMode) {
         // Write
         when (io.bus.addr === BusConfig.UART_START.U) {
-          val data = io.bus.dataWrite(7, 0)
+          dataOut := io.bus.dataWrite(7, 0)
+          dataOutReady := true.B
           printf(cf"Uart Receive Data 0x$data%x, assci $data%c\n")
 
         } .elsewhen(io.bus.addr === (BusConfig.UART_START + 4).U) {
@@ -59,11 +83,11 @@ class UartController extends Module {
       } .otherwise {
         // Read
         when (io.bus.addr === BusConfig.UART_START.U) {
-          assert(false.B, "unimpl recv data")
+          io.bus.dataRead := data
+          dataReady := false.B
         } .elsewhen(io.bus.addr === (BusConfig.UART_START + 4).U) {
-          io.bus.dataRead := 0x00002000.U
+          io.bus.dataRead := Cat(0.U(8.W), 0.U(8.W), 0x20.U | dataReady, 0.U(8.W))
         } .otherwise {
-          DebugUtils.Print(cf"ERROR: Uart Addr Error : 0x${io.bus.addr}%x")
           assert(false.B, "uart addr error")
         }
       }
@@ -102,11 +126,7 @@ class UartController extends Module {
     box.io.wb_stb_i := io.bus.stb && !io.bus.ack
     io.bus.ack := box.io.wb_ack_o
 
-    // val counter = Wire(UInt(32.W))
-    // BoringUtils.addSink(counter, "debugCounter")
-    // when (io.bus.dataRead(7, 0) === 0x21.U) {
-    //   printf(cf"[$counter] data readed\n")
-    // }
+
   }
 }
 
