@@ -150,3 +150,14 @@ class csr_tvec_t extends Bundle {
   }
 }
 
+class csr_satp_t extends Bundle {
+  val mode = Bool()
+  val asid = UInt(9.W)
+  val ppn = UInt(22.W)
+
+  def reg: UInt = {
+    val register = Wire(UInt(32.W))
+    register := Cat(mode, asid, ppn)
+    register
+  }
+}

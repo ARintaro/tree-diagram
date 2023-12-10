@@ -109,6 +109,8 @@ class ExceptionUnit extends Module with InstructionConstants {
     val mideleg_reg = RegInit(0.U(32.W)) // mideleg
     val mhartid_reg = RegInit(0.U(32.W)) // mhartid
 
+    val satp = RegInit(0.U.asTypeOf(new csr_satp_t)) // satp
+
     val mstatusDebug = WireInit(0.U(32.W))
     mstatusDebug := status.reg(M_LEVEL)
     val mcauseDebug = WireInit(0.U(32.W))
@@ -245,7 +247,8 @@ class ExceptionUnit extends Module with InstructionConstants {
         CSR_SSCRATCH_ADDR -> sscratch_reg,
         CSR_SEPC_ADDR -> sepc_reg,
         CSR_SCAUSE_ADDR -> scause.asUInt,
-        CSR_STVAL_ADDR -> stval_reg
+        CSR_STVAL_ADDR -> stval_reg,
+        CSR_SATP_ADDR -> satp.asUInt
     ))
     when(conductCsrInst && canReadCsr && io.reference.readCsrEn){ 
         io.regWrite.id := io.reference.prd
@@ -439,6 +442,9 @@ class ExceptionUnit extends Module with InstructionConstants {
             }
             is(CSR_STVAL_ADDR){
                 stval_reg := csrWriteData
+            }
+            is(CSR_SATP_ADDR){
+                satp := csrWriteData.asTypeOf(new csr_satp_t)
             }
         }
     }.elsewhen(conductFencei) {

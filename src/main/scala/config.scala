@@ -93,9 +93,9 @@ object InsConfig {
     val EC_M_ENV_CALL        = "b1011".U // 从机器态调用环境调用指令 - Machine Environment Call
 
     // Page Fault Exceptions
-    val EC_IA_PAGE_FAULT     = "b1100".U // 指令页错误
-    val EC_LA_PAGE_FAULT     = "b1101".U // 加载页错误
-    val EC_SAIA_PAGE_FAULT   = "b1111".U // 存储/原子操作页错误
+    val EC_FETCH_PF          = "b1100".U // 指令页错误 fetch page fault
+    val EC_LOAD_PF           = "b1101".U // 加载页错误 load page fault
+    val EC_STORE_PF          = "b1111".U // 存储/原子操作页错误 store page fault
 
     // Software Interrupts
     val IT_U_SOFT_INT        = "b0000".U // 用户软件中断
