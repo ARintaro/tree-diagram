@@ -107,6 +107,7 @@ class DataMemoryManagementUnit extends Module {
 
       io.ack := true.B
       io.entry := walkResultWire
+      walkState := idle
 
       when(walkResultWire.V) {
         io.exception.valid := false.B
