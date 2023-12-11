@@ -87,8 +87,9 @@ class InstructionMemoryManagementUnit extends Module {
         }
         is(pt1_S){
             when(tlb.io.result.hit){
-                paddr_valid := true.B
-                paddr_bits := Cat(tlb.io.result.pte.ppn1, tlb.io.result.pte.ppn0, last_vaddr.offset)(31, 0)
+                io.paddr.valid := true.B
+                io.paddr.bits := Cat(tlb.io.result.pte.ppn1, tlb.io.result.pte.ppn0, last_vaddr.offset)(31, 0)
+                io.error := checkAddressFormat(io.paddr.bits, true.B, false.B, false.B)
                 state := tlb_S
             }.otherwise{
                 io.bus.addr := Cat(satp.ppn, last_vaddr.vpn1, 0.U(2.W))(31, 0)
