@@ -108,7 +108,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 
   val f2_done = !stall || !f2_valid
 
-  // TODO: 使用f2_word_vaddr_wire访问 TLB，Dcache
+  // TODO: 使用f2_word_vaddr_wire访问 MMU，Dcache
   io.cacheFindVaddr := f2_vaddr_wire
 
   when(f2_done) {
@@ -152,7 +152,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 
   f3_first_in := !stall
 
-  // TODO : 从TLB接受地址
+  // TODO: 从MMU接受地址
   val f3_word_paddr_wire = Cat(f2_vaddr(31, 2), 0.U(2.W))
   f3_addrLow2 := f2_vaddr(1, 0)
 
