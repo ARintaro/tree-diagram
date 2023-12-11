@@ -23,6 +23,9 @@ class ALU extends Module with InstructionConstants {
         ALU_XOR -> (io.src1 ^ io.src2),
         ALU_SLT -> (io.src1.asSInt < io.src2.asSInt).asUInt,
         ALU_SLTU-> (io.src1 < io.src2).asUInt
+        ALU_ANDN-> (io.src1 & (~io.src2)),
+        ALU_MINU-> Mux(io.src1 < io.src2, io.src1, io.src2),
+        ALU_XNOR-> (io.src1 ^ (~io.src2))
     ))
 }
 
