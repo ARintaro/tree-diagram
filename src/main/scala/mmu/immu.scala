@@ -31,10 +31,12 @@ class InstructionMemoryManagementUnit extends Module {
     val sum = Bool()
     // BoringUtils.addSink(sum, "statusSum")
 
-    io.paddr.valid := false.B
-    io.paddr.bits := DontCare
-    io.error.en := false.B
-    io.error.code := DontCare
+    val paddr_bits = RegInit(0.U(32.W))
+    val paddr_valid = RegInit(false.B)
+    io.paddr.valid := paddr_valid
+    io.paddr.bits := paddr_bits
+    val error = RegInit(0.U.asTypeOf(new Error))
+    io.error := error
     io.bus.master_turn_off()
     io.bus.dataBytesSelect := "b1111".U
     io.bus.dataMode := false.B
@@ -62,9 +64,9 @@ class InstructionMemoryManagementUnit extends Module {
         is(tlb_S){
             last_vaddr := io.vaddr.asTypeOf(new VirtualAddress)
             when(acked){
-                io.error := checkPagePermissionLevel2(leafPTE, privilege, true.B, false.B, false.B, sum, last_vaddr.offset)
-                io.paddr.valid := true.B
-                io.paddr.bits := Cat(leafPTE.ppn1, leafPTE.ppn0, last_vaddr.offset)(31, 0)
+                error := checkPagePermissionLevel2(leafPTE, privilege, true.B, false.B, false.B, sum, last_vaddr.offset)
+                paddr_valid := true.B
+                paddr_bits := Cat(leafPTE.ppn1, leafPTE.ppn0, last_vaddr.offset)(31, 0)
                 val newEntry = WireInit(0.U.asTypeOf(new TLBEntry))
                 newEntry.vpn1 := last_vaddr.vpn1
                 newEntry.vpn0 := last_vaddr.vpn0
@@ -73,9 +75,9 @@ class InstructionMemoryManagementUnit extends Module {
                 acked := false.B
             }
             when(satp.mode === 0.U){
-                io.paddr.bits := io.vaddr
-                io.paddr.valid := true.B
-                io.error := checkAddressFormat(io.vaddr, true.B, false.B, false.B)
+                paddr_bits := io.vaddr
+                paddr_valid := true.B
+                error := checkAddressFormat(io.vaddr, true.B, false.B, false.B)
             }.otherwise{
                 tlb.io.searchReq.vpn1 := io.vaddr.asTypeOf(new VirtualAddress).vpn1
                 tlb.io.searchReq.vpn0 := io.vaddr.asTypeOf(new VirtualAddress).vpn0
@@ -85,8 +87,8 @@ class InstructionMemoryManagementUnit extends Module {
         }
         is(pt1_S){
             when(tlb.io.result.hit){
-                io.paddr.valid := true.B
-                io.paddr.bits := Cat(tlb.io.result.pte.ppn1, tlb.io.result.pte.ppn0, last_vaddr.offset)(31, 0)
+                paddr_valid := true.B
+                paddr_bits := Cat(tlb.io.result.pte.ppn1, tlb.io.result.pte.ppn0, last_vaddr.offset)(31, 0)
                 state := tlb_S
             }.otherwise{
                 io.bus.addr := Cat(satp.ppn, last_vaddr.vpn1, 0.U(2.W))(31, 0)
@@ -101,7 +103,7 @@ class InstructionMemoryManagementUnit extends Module {
             io.error := checkPagePermissionLevel1(midPTE, privilege, true.B, false.B, false.B, sum)
             when(io.error.en){
                 state := tlb_S
-                io.paddr.valid := true.B
+                paddr_valid := true.B
             }.otherwise{
                 io.bus.addr := Cat(midPTE.ppn1, last_vaddr.vpn0, last_vaddr.offset)(31, 0)
                 io.bus.stb := true.B
