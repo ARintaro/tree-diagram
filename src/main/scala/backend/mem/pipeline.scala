@@ -36,6 +36,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   val tlb = Module(new TranslationLookasideBuffer)
 
   dmmu.busIO <> io.memBus
+  dmmu.ctrlIO.flush := ctrlIO.flush
 
   tlb.ctrlIO.clear := ctrlIO.clearTLB
 
@@ -203,6 +204,14 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   f3_extType := f2_extType
   f3_vaddr := f2_vaddr
 
+  dmmu.io.stb := false.B
+  dmmu.io.dataMode := DontCare
+  dmmu.io.vaddr := DontCare
+
+  tlb.io.insert.submit := false.B
+  tlb.io.insert.entry := DontCare
+  tlb.io.insert.tag := DontCare
+
   when(f2_valid) {
     when(f3_first_in) {
       when(satp.mode === 0.U || priv === M_LEVEL) {
@@ -218,6 +227,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
         f3_paddr_valid_wire := false.B
 
         dmmu.io.stb := true.B
+        dmmu.io.dataMode := f2_memType
         dmmu.io.vaddr := f2_vaddr.asTypeOf(new VirtualAddress)
       }
 

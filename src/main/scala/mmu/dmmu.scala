@@ -44,6 +44,12 @@ class DataMemoryManagementUnit extends Module {
   busIO.dataMode := false.B
   busIO.dataBytesSelect := "b1111".U
   busIO.stb := false.B
+  busIO.addr := DontCare
+  busIO.dataWrite := DontCare
+
+  io.entry := DontCare
+  io.exception := DontCare
+  io.ack := false.B
 
   switch(walkState) {
     is(idle) {

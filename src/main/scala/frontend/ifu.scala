@@ -36,6 +36,8 @@ class InstructionFetchUnit extends Module {
   val immu = Module(new InstructionMemoryManagementUnitNew)
   val icache = Module(new InstructionCache(CacheConfig.icache))
 
+  immu.ctrlIO.flush := ctrlIO.flush
+
   val fetchQueue = Module(
     new CircularQueue(
       new RawInstruction,
