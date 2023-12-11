@@ -16,6 +16,7 @@ class Exception extends Bundle {
 object AddressException {
   def invalidAddr(paddr: UInt): Bool = {
     val valid = WireInit(false.B)
+    // 并行 分两个函数
     when((paddr & BASE_RAM_MASK.U) === BASE_RAM_START.U) {
       valid := true.B
     }.elsewhen((paddr & EXT_RAM_MASK.U) === EXT_RAM_START.U) {
@@ -27,6 +28,31 @@ object AddressException {
     }.otherwise(valid := false.B)
     // FIXME: 之后还要补充对其他外设的判断
     !valid
+  }
+
+  def CheckValidRamAddress(paddr: UInt): Bool = {
+    return  ( (paddr & BASE_RAM_MASK.U) === BASE_RAM_START.U ||
+      (paddr & EXT_RAM_MASK.U) === EXT_RAM_START.U)
+  }
+
+  def CheckValidAddress(paddr: UInt): Bool = {
+    return (CheckValidAddress(paddr) || (paddr & UART_MASK.U) === UART_START.U ||
+      (paddr & TIMER_MASK.U) === TIMER_START.U) // TODO: 其他外设
+  }
+
+  def CheckFetchAddress(paddr: UInt, entry: PageTableEntry, privilege: PrivilegeLevel): Exception = {
+    val exception = WireInit(0.U.asTypeOf(new Exception))
+    val misaligned = (paddr(1, 0) =/= 0.U)
+    val invalid = ~CheckValidRamAddress(paddr)
+    val pageFault = ~entry.X || (privilege === S_LEVEL && entry.U)
+    exception.valid := misaligned || invalid || pageFault
+    exception.code := MuxCase(0.U, 
+      Seq(
+        misaligned -> EC_IA_MISALIGNED,
+        invalid -> EC_IA_FAULT,
+        pageFault -> EC_FETCH_PF
+      )
+    )
   }
 
   def checkAddressFormat(

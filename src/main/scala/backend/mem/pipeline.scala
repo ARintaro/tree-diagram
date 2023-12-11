@@ -4,6 +4,9 @@ import chisel3._
 import chisel3.util._
 import scala.collection.DebugUtils
 import scala.collection.DebugUtils
+import scala.annotation.newMain
+import chisel3.util.experimental.BoringUtils
+import PrivilegeLevel._
 
 class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   val io = IO(new Bundle {
@@ -28,8 +31,12 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
     val flush = Input(Bool())
   })
 
-  // val dmmu = Module(new DataMemoryManagementUnit)
-  // val tlb = Module(new TranslationLookasideBuffer)
+  val dmmu = Module(new DataMemoryManagementUnit)
+  val tlb = Module(new TranslationLookasideBuffer)
+  val satp = WireInit(0.U.asTypeOf(new csr_satp))
+  val priv = WireInit(0.U(2.W))
+  BoringUtils.addSink(priv, "globalPrivilegeLevel")
+  BoringUtils.addSink(satp, "satp")
 
   // F0: 仲裁发射
   // F1: 读寄存器、数据旁路
@@ -102,6 +109,8 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   val f2_valid = RegInit(false.B)
   val f2_extType = RegInit(false.B)
 
+  val f2_result = RegInit(0.U.asTypeOf(new PageTableEntry))
+
   val f2_sideway = BackendUtils.SearchSideway(f1_ins.prs1, f1_ins.prd_or_prs2)
   val f2_src1_wire = Mux(f2_sideway(0).valid, f2_sideway(0).value, f1_src1)
   val f2_src2_wire = Mux(f2_sideway(1).valid, f2_sideway(1).value, f1_src2)
@@ -111,8 +120,13 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 
   val f2_done = !stall || !f2_valid
 
+  
+
   // TODO: 使用f2_vaddr_wire访问 MMU，Dcache
   io.cacheFindVaddr := f2_vaddr_wire
+  tlb.io.search.vpn1 := f2_vaddr_wire(31, 22)
+  tlb.io.search.vpn0 := f2_vaddr_wire(21, 12)
+  tlb.io.search.asid := satp.asid
 
   when(f2_done) {
     f2_vaddr := f2_vaddr_wire
@@ -125,6 +139,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
     f2_valid := f1_valid
     f2_prd := f1_ins.prd_or_prs2
     f2_extType := f1_ins.extType
+    f2_result := tlb.io.result
 
     // tlb.search(f2_vaddr_wire.asTypeOf(new VirtualAddress))
 
@@ -152,14 +167,43 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   val f3_memLen = RegInit(0.U(2.W))
   val f3_extType = RegInit(false.B)
   val f3_word_addr = RegInit(0.U(BusConfig.ADDR_WIDTH))
-  val f3_first_in = RegInit(false.B)
   val f3_bus_data = RegInit(false.B)
 
-  f3_first_in := !stall
 
-  // TODO: 从MMU接受地址
-  val f3_word_paddr_wire = Cat(f2_vaddr(31, 2), 0.U(2.W))
-  f3_addrLow2 := f2_vaddr(1, 0)
+  val f3_first_in = RegInit(false.B)
+  val f3_paddr_valid = RegInit(false.B)
+  val f3_paddr = RegInit(0.U(BusConfig.ADDR_WIDTH))
+
+  f3_first_in := !stall
+  val f3_paddr_wire = WireInit(0.U(BusConfig.ADDR_WIDTH))
+  val f3_paddr_valid_wire = WireInit(false.B)
+
+  val f3_word_paddr_wire = Cat(f3_paddr_wire(31, 2), 0.U(2.W))
+  f3_addrLow2 := f3_paddr_wire(1, 0)
+
+  dmmu.io.vaddr := f2_vaddr.asTypeOf(new VirtualAddress)
+  dmmu.io.in := f2_result
+
+  when (f3_first_in) {
+    when (satp.mode === 0.U || priv === M_LEVEL){
+      f3_paddr_wire := f2_vaddr
+      f3_paddr_valid_wire := true.B
+      f3_paddr_valid := true.B
+      f3_paddr := f3_paddr_wire
+    } .elsewhen(f2_result.hit){
+      f3_paddr_wire := Cat(f2_result.ppn1, f2_result.ppn0, f2_vaddr(11, 0))(31, 0)
+      f3_paddr_valid_wire := true.B
+      f3_paddr_valid := true.B
+      f3_paddr := f3_paddr_wire
+    } .otherwise {
+
+    }
+  } .otherwise {
+    f3_paddr_valid_wire := f3_paddr_valid
+    f3_paddr_wire := f3_paddr
+  }
+
+  
 
   io.findStore.paddr := f3_word_paddr_wire
 
@@ -186,97 +230,91 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   f3_extType := f2_extType
   f3_word_addr := f3_word_paddr_wire
 
+  
+
   when(f2_valid) {
-    io.bus.addr := f3_word_paddr_wire
-    when(f2_memType) {
-      // store
-      // TODO : MMIO_BUFFER
-      f3_store_type_wire := Mux(io.bus.mmio, STORE_MMIO, STORE_RAM)
-      io.newStore.valid := true.B
-      when(io.newStore.succ) {
-        // 写入 Store Buffer 成功
-        f3_valid := true.B
-        f3_storeBufferIdx := io.newStore.idx
-      }.otherwise {
-        // 写入 Store Buffer 失败，需要停顿重试
-        f3_valid := false.B
-        stall := true.B
-      }
-
-    }.otherwise {
-      // load
-      // TODO : LOAD_MMIO
-      f3_store_type_wire := Mux(io.bus.mmio, LOAD_MMIO, LOAD_RAM)
-
-      // printf(
-      //   cf"[Mem Cache Find] robIdx $f2_robIdx paddr 0x${f3_word_paddr_wire}%x paddr_tag 0x${f3_word_paddr_wire(
-      //       BackendConfig.dcacheTagEnd,
-      //       BackendConfig.dcacheTagBegin
-      //     )}%x entry_tag 0x${io.cacheResult.tag}%x ram_addr 0x${f3_word_paddr_wire(BackendConfig.dcacheIndexEnd, BackendConfig.dcacheIndexBegin)}%x  data 0x${io.cacheResult.data}%x, bytes ${io.cacheResult.bytesEnable}\n"
-      // )
-
-      when(io.findStore.valid && ~io.bus.mmio) {
-        // 在 Store Buffer 中找到数据
-
-        when((io.findStore.bytes & f2_bytes) === f2_bytes) {
-          // 如果找到的修改是load的子集, 可以直接使用数据
+    when(f3_paddr_valid_wire) {
+      io.bus.addr := f3_word_paddr_wire
+      when(f2_memType) {
+        // store
+        // TODO : MMIO_BUFFER
+        f3_store_type_wire := Mux(io.bus.mmio, STORE_MMIO, STORE_RAM)
+        io.newStore.valid := true.B
+        when(io.newStore.succ) {
+          // 写入 Store Buffer 成功
           f3_valid := true.B
-          // TODO: NOTE Half、Byte等需要在这里变换数据
-          f3_data := io.findStore.value
+          f3_storeBufferIdx := io.newStore.idx
+        }.otherwise {
+          // 写入 Store Buffer 失败，需要停顿重试
+          f3_valid := false.B
+          stall := true.B
+        }
+
+      }.otherwise {
+        // load
+        // TODO : LOAD_MMIO
+        f3_store_type_wire := Mux(io.bus.mmio, LOAD_MMIO, LOAD_RAM)
+
+        // printf(
+        //   cf"[Mem Cache Find] robIdx $f2_robIdx paddr 0x${f3_word_paddr_wire}%x paddr_tag 0x${f3_word_paddr_wire(
+        //       BackendConfig.dcacheTagEnd,
+        //       BackendConfig.dcacheTagBegin
+        //     )}%x entry_tag 0x${io.cacheResult.tag}%x ram_addr 0x${f3_word_paddr_wire(BackendConfig.dcacheIndexEnd, BackendConfig.dcacheIndexBegin)}%x  data 0x${io.cacheResult.data}%x, bytes ${io.cacheResult.bytesEnable}\n"
+        // )
+
+        when(io.findStore.valid && ~io.bus.mmio) {
+          // 在 Store Buffer 中找到数据
+
+          when((io.findStore.bytes & f2_bytes) === f2_bytes) {
+            // 如果找到的修改是load的子集, 可以直接使用数据
+            f3_valid := true.B
+            // TODO: NOTE Half、Byte等需要在这里变换数据
+            f3_data := io.findStore.value
+            f3_bus_data := false.B
+            f3_wakeup_wire := true.B
+            if (DebugConfig.printMem) {
+              DebugUtils.Print(
+                cf"[Mem Pipe $index] robIdx $f2_robIdx, Store Buffer Hit, bytes: ${io.findStore.bytes}, paddr: 0x${f3_word_paddr_wire}%x, data: 0x${io.findStore.value}%x"
+              )
+            }
+          }.otherwise {
+            // 如果不是，需要停顿直到查不到或者属于子集为止
+            stall := true.B
+            f3_valid := false.B
+          }
+
+        }.elsewhen(
+          (io.cacheResult.bytesEnable & f2_bytes) === f2_bytes && io.cacheResult.tag === f3_word_paddr_wire(
+            BackendConfig.dcacheTagEnd,
+            BackendConfig.dcacheTagBegin
+          ) && f3_first_in
+        ) {
+          assert(!io.bus.mmio)
+          // Dcache Hit
+          f3_valid := true.B
           f3_bus_data := false.B
           f3_wakeup_wire := true.B
-          if (DebugConfig.printMem) {
-            DebugUtils.Print(
-              cf"[Mem Pipe $index] robIdx $f2_robIdx, Store Buffer Hit, bytes: ${io.findStore.bytes}, paddr: 0x${f3_word_paddr_wire}%x, data: 0x${io.findStore.value}%x"
-            )
+          f3_data := io.cacheResult.data
+
+
+        }.otherwise {
+          // 在 Buffer 中找不到数据，需要自行 load
+          io.bus.stb := !io.bus.mmio || (io.robHead === f2_robIdx && io.findStore.empty)
+
+          when(io.bus.ack) {
+            f3_bus_data := true.B
+            f3_valid := true.B
+            f3_wakeup_wire := true.B
+
+          }.otherwise {
+            stall := true.B
+            f3_valid := false.B
           }
-        }.otherwise {
-          // 如果不是，需要停顿直到查不到或者属于子集为止
-          stall := true.B
-          f3_valid := false.B
-        }
-
-      }.elsewhen(
-        (io.cacheResult.bytesEnable & f2_bytes) === f2_bytes && io.cacheResult.tag === f3_word_paddr_wire(
-          BackendConfig.dcacheTagEnd,
-          BackendConfig.dcacheTagBegin
-        ) && f3_first_in
-      ) {
-        assert(!io.bus.mmio)
-        // Dcache Hit
-        f3_valid := true.B
-        f3_bus_data := false.B
-        f3_wakeup_wire := true.B
-        f3_data := io.cacheResult.data
-
-        if (DebugConfig.printMem) {
-          // printf(
-          //   cf"[Mem Pipe $index] robIdx $f2_robIdx, Dcache Hit, bytes: ${io.cacheResult.bytesEnable}, paddr: 0x${f3_word_paddr_wire}%x, data: 0x${io.cacheResult.data}%x\n"
-          // )
-        }
-
-      }.otherwise {
-        // 在 Buffer 中找不到数据，需要自行 load
-        io.bus.stb := !io.bus.mmio || (io.robHead === f2_robIdx && io.findStore.empty)
-
-        when(io.bus.ack) {
-          f3_bus_data := true.B
-          f3_valid := true.B
-          f3_wakeup_wire := true.B
-
-          // printf(
-          //   cf"[Mem Pipe $index] robIdx $f2_robIdx, BUS ACK, paddr: 0x${f3_word_paddr_wire}%x\n"
-          // )
-
-        }.otherwise {
-          stall := true.B
-          f3_valid := false.B
-
-          // printf(
-          //   cf"[Mem Pipe $index] robIdx $f2_robIdx, ACCESS BUS, paddr: 0x${f3_word_paddr_wire}%x\n"
-          // )
         }
       }
+    }.otherwise {
+      stall := true.B
+      f3_valid := false.B
     }
   }.otherwise {
     stall := false.B

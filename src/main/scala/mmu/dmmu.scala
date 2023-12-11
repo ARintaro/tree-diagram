@@ -11,12 +11,12 @@ import PrivilegeLevel._
 
 class DataMemoryManagementUnit extends Module {
   val io = IO(new Bundle {
-    val bus = BusMasterInterface()
+    val vaddr = Input(new VirtualAddress)
+    
+    
+
   })
 
-  val ctrlIO = IO(new Bundle {
-    val flush = Input(Bool())
-  })
 
-  io.bus.master_turn_off()
+
 }

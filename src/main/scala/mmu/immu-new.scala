@@ -41,6 +41,7 @@ class InstructionMemoryManagementUnitNew extends Module {
   val walkResultValid = RegInit(false.B)
   val walkResultTag = RegInit(0.U.asTypeOf(new TLBTag))
   val walkResult = RegInit(0.U.asTypeOf(new PageTableEntry))
+  val walkException = RegInit(0.U.asTypeOf(new Exception))
 
   when (ctrlIO.clearTLB) {
     walkResultValid := false.B
@@ -76,8 +77,7 @@ class InstructionMemoryManagementUnitNew extends Module {
       f2_io.paddr.bits := Cat(entry.ppn1, entry.ppn0, f2_vaddr.offset)(31, 0)
 
       // TODO : 判断权限
-      f2_io.exception.valid := false.B
-      f2_io.exception.code := DontCare
+      f2_io.exception := CheckFetchAddress(f2_io.paddr.bits, entry, privilege)
 
     }.otherwise {
       // tlb 没有hit，判断walkResult
@@ -86,8 +86,7 @@ class InstructionMemoryManagementUnitNew extends Module {
 
       when(walkResultValid && walkResultTag === f2_tag) {
         // walkResult 有效，且tag匹配，说明walk已经完成，而且没有写入tlb，说明发生缺页异常
-        f2_io.exception.valid := true.B
-        f2_io.exception.code := EC_FETCH_PF
+        f2_io.exception := walkException
       }.otherwise {
         // walkResult 无效，或者tag不匹配，说明需要walk
         f2_io.exception.valid := false.B
@@ -96,6 +95,8 @@ class InstructionMemoryManagementUnitNew extends Module {
         walkRequest := true.B
         walkResultTag := f2_tag
         walkResultValid := false.B
+        walkException.valid := false.B
+
       }
     }
 
@@ -114,9 +115,15 @@ class InstructionMemoryManagementUnitNew extends Module {
   switch(walkState) {
     is(idle) {
       busIO.addr := Cat(satp.ppn, f2_tag.vpn1, 0.U(2.W))(31, 0)
-      when (walkRequest) {        
-        walkState := level1
-        busIO.stb := true.B
+      when (walkRequest) {
+        when(CheckValidRamAddress(busIO.addr)){
+          walkState := level1
+          busIO.stb := true.B
+        }.otherwise{
+          walkResultValid := true.B
+          walkException.valid := true.B
+          walkException.code := EC_IA_FAULT
+        }       
       }
     }
     is(level1) {
@@ -134,6 +141,15 @@ class InstructionMemoryManagementUnitNew extends Module {
       when (walkResultWire.V) {
         walkState := level3
         busIO.stb := true.B
+        when(CheckValidRamAddress(busIO.addr)){
+          walkState := level1
+          busIO.stb := true.B
+        }.otherwise{
+          walkResultValid := true.B
+          walkException.valid := true.B
+          walkException.code := EC_IA_FAULT
+          state := idle
+        }       
       } .otherwise {
         walkResultValid := true.B
         walkState := idle
