@@ -24,7 +24,8 @@ object MemoryManagementConstants {
 
 
 class TLBInsertRequest extends Bundle {
-  val entry = new TLBEntry
+  val tag = new TLBTag
+  val entry = new PageTableEntry
   val submit = Bool()
 }
 
@@ -62,21 +63,23 @@ class TranslationLookasideBuffer extends Module {
   val random = RegInit(0.U(TLB_ENTRY_WIDTH.W))
   random := random + 1.U
 
-  val hits = tags.map(_.vpn1 === io.search.vpn1 && _.vpn0 === io.search.vpn0 && _.asid === io.search.asid).asUInt
+  val hits = VecInit(tags.map(x => x.vpn1 === io.search.vpn1 && x.vpn0 === io.search.vpn0 && x.asid === io.search.asid)).asUInt & validBits
 
   outBuffer.hit := hits.orR
   outBuffer.pte := entries(OHToUInt(hits))
 
   assert(PopCount(hits) <= 1.U)
   
-  when(io.insertReq.submit) {
+  when(io.insert.submit) {
     val invalids = validBits.asBools.map(!_)
     val firstAvailable = PriorityEncoder(invalids)
     when(invalids.reduce(_ || _)) {
-      entries(firstAvailable) := io.insertReq.entry
+      entries(firstAvailable) := io.insert.entry
+      tags(firstAvailable) := io.insert.tag
       validBits := validBits.bitSet(firstAvailable, true.B)
     }.otherwise {
-      entries(random) := io.insertReq.entry
+      entries(random) := io.insert.entry
+      tags(random) := io.insert.tag
     }
   }
 
