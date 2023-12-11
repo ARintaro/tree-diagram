@@ -33,7 +33,7 @@ class InstructionFetchUnit extends Module {
 
   assert(!io.redirect(0).valid || ctrlIO.flush, "Redirect without flush")
 
-  val tlb = Module(new TranslationLookasideBuffer)
+  val immu = Module(new InstructionMemoryManagementUnit)
   val icache = Module(new InstructionCache(CacheConfig.icache))
 
   val fetchQueue = Module(
@@ -61,31 +61,31 @@ class InstructionFetchUnit extends Module {
   }
 
   fetchQueue.ctrlIO.flush := ctrlIO.flush
-  tlb.ctrlIO.clear := ctrlIO.clearTLB
+  immu.ctrlIO.clearTLB := ctrlIO.clearTLB
   icache.ctrlIO.clear := ctrlIO.clearIcache
 
   // flush时 fetchQueue会拒绝输入，icache无所谓flush
   icache.ctrlIO.flush := false.B
-  tlb.ctrlIO.flush := ctrlIO.flush
+  immu.ctrlIO.flush := ctrlIO.flush
 
   sramBusIO(0) <> icache.sramIO
-  sramBusIO(1) <> tlb.sramIO
+  sramBusIO(1) <> immu.io.bus
 
   // 取指一阶段
-  tlb.f1_io.vaddr := pc.io.vaddr
+  immu.io.vaddr := pc.io.vaddr
   icache.f1_io.vaddr := pc.io.vaddr
 
   // 取指二阶段
-  icache.f2_io.paddr := tlb.f2_io.paddr
+  icache.f2_io.paddr := immu.io.paddr
 
   // 在取指二阶段进行快速解码
   val fetchPC =
-    (0 until CacheConfig.icache.cacheLineSize).map(i => tlb.f2_io.paddr.bits + (i * 4).U)
+    (0 until CacheConfig.icache.cacheLineSize).map(i => immu.io.paddr.bits + (i * 4).U)
   val preDecs = VecInit(
     Seq.fill(CacheConfig.icache.cacheLineSize)(Module(new PreDecoder).io)
   )
   for (i <- 0 until CacheConfig.icache.cacheLineSize) {
-    val curPC = tlb.f2_io.paddr.bits + (i * 4).U
+    val curPC = immu.io.paddr.bits + (i * 4).U 
     preDecs(i).inst := icache.f2_io.ins(i)
     preDecs(i).vaddr := curPC
   }

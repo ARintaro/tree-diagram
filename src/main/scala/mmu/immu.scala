@@ -12,13 +12,15 @@ import AddressException._
 
 class InstructionMemoryManagementUnit extends Module {
     val io = IO(new Bundle {
-        val vaddr = UInt(32.W)
+        val vaddr = Input(UInt(32.W))
         val paddr = Valid(UInt(32.W))
+        val vaddr_out = Output(UInt(32.W))
         val error = Output(new Error)
         val bus = BusMasterInterface()
     })
 
     val ctrlIO = IO(new Bundle {
+        val flush = Input(Bool())
         val clearTLB = Input(Bool())
     })
 
@@ -27,7 +29,7 @@ class InstructionMemoryManagementUnit extends Module {
     val privilege = WireInit(0.U(2.W))
     BoringUtils.addSink(privilege, "globalPrivilegeLevel")
     val sum = Bool()
-    BoringUtils.addSink(sum, "statusSum")
+    // BoringUtils.addSink(sum, "statusSum")
 
     io.paddr.valid := false.B
     io.paddr.bits := DontCare
@@ -38,9 +40,15 @@ class InstructionMemoryManagementUnit extends Module {
     io.bus.dataMode := false.B
 
     val last_vaddr = RegInit(0.U.asTypeOf(new VirtualAddress))
+    io.vaddr_out := last_vaddr.asUInt
 
     // inner tlb
     val tlb = Module(new TranslationLookasideBuffer)
+    tlb.io.searchReq.submit := false.B
+    tlb.io.searchReq.vpn1 := DontCare
+    tlb.io.searchReq.vpn0 := DontCare
+    tlb.io.insertReq.submit := false.B
+    tlb.io.insertReq.entry := DontCare
     tlb.ctrlIO.clear := ctrlIO.clearTLB
 
     val List(tlb_S, pt1_S, pt2_S) = Enum(3)
@@ -52,7 +60,7 @@ class InstructionMemoryManagementUnit extends Module {
 
     switch(state){
         is(tlb_S){
-            last_vaddr := io.vaddr
+            last_vaddr := io.vaddr.asTypeOf(new VirtualAddress)
             when(acked){
                 io.error := checkPagePermissionLevel2(leafPTE, privilege, true.B, false.B, false.B, sum, last_vaddr.offset)
                 io.paddr.valid := true.B
@@ -61,7 +69,7 @@ class InstructionMemoryManagementUnit extends Module {
                 newEntry.vpn1 := last_vaddr.vpn1
                 newEntry.vpn0 := last_vaddr.vpn0
                 newEntry.pte := leafPTE
-                tlb.insert(newEntry)
+                tlb.io.insertReq.entry := newEntry
                 acked := false.B
             }
             when(satp.mode === 0.U){
@@ -69,7 +77,9 @@ class InstructionMemoryManagementUnit extends Module {
                 io.paddr.valid := true.B
                 io.error := checkAddressFormat(io.vaddr, true.B, false.B, false.B)
             }.otherwise{
-                tlb.search(io.vaddr.asTypeOf(new VirtualAddress))
+                tlb.io.searchReq.vpn1 := io.vaddr.asTypeOf(new VirtualAddress).vpn1
+                tlb.io.searchReq.vpn0 := io.vaddr.asTypeOf(new VirtualAddress).vpn0
+                tlb.io.searchReq.submit := true.B
                 state := pt1_S
             }
         }
@@ -102,5 +112,12 @@ class InstructionMemoryManagementUnit extends Module {
                 }
             }
         }
+    }
+
+    when(ctrlIO.flush){
+        state := tlb_S
+        midPTE := 0.U.asTypeOf(new PageTableEntry)
+        leafPTE := 0.U.asTypeOf(new PageTableEntry)
+        acked := false.B
     }
 }

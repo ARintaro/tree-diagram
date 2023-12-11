@@ -21,16 +21,16 @@ object MemoryManagementConstants {
     val OFFSET_WIDTH = 12.W
 }
 
-// class TLBSearchRequest extends Bundle {
-//     val vpn1 = UInt(VPN1_WIDTH)
-//     val vpn0 = UInt(VPN0_WIDTH)
-//     val submit = Bool()
-// }
+class TLBSearchRequest extends Bundle {
+    val vpn1 = UInt(VPN1_WIDTH)
+    val vpn0 = UInt(VPN0_WIDTH)
+    val submit = Bool()
+}
 
-// class TLBInsertRequest extends Bundle {
-//     val entry = new TLBEntry
-//     val submit = Bool()
-// }
+class TLBInsertRequest extends Bundle {
+    val entry = new TLBEntry
+    val submit = Bool()
+}
 
 class TLBEntry extends Bundle {
     val vpn1 = UInt(VPN1_WIDTH) // tag
@@ -45,8 +45,8 @@ class TLBSearchResponse extends Bundle {
 
 class TranslationLookasideBuffer extends Module {
     val io = IO(new Bundle {
-        // val searchReq = Input(new TLBSearchRequest)
-        // val insertReq = Input(new TLBInsertRequest)
+        val searchReq = Input(new TLBSearchRequest)
+        val insertReq = Input(new TLBInsertRequest)
         val result = Output(new TLBSearchResponse)
     })
 
@@ -69,44 +69,44 @@ class TranslationLookasideBuffer extends Module {
     val validBits = RegInit(0.U(TLB_ENTRY_NUM.W))
 
     // situation 1: search
-    def search(vaddr: VirtualAddress): Unit = {
-        entries.zipWithIndex.foreach{ case (entry, i) => {
-            when(entry.vpn1 === vaddr.vpn1 && entry.vpn0 === vaddr.vpn0 && validBits(i) === 1.U){
-                outBuffer := entry.pte
-                hit := true.B
-            }
-        }}
-    }
-    // when(io.searchReq.submit){
+    // def search(vaddr: VirtualAddress): Unit = {
     //     entries.zipWithIndex.foreach{ case (entry, i) => {
-    //         when(entry.vpn1 === io.searchReq.vpn1 && entry.vpn0 === io.searchReq.vpn0 && validBits(i) === 1.U){
+    //         when(entry.vpn1 === vaddr.vpn1 && entry.vpn0 === vaddr.vpn0 && validBits(i) === 1.U){
     //             outBuffer := entry.pte
     //             hit := true.B
     //         }
     //     }}
     // }
+    when(io.searchReq.submit){
+        entries.zipWithIndex.foreach{ case (entry, i) => {
+            when(entry.vpn1 === io.searchReq.vpn1 && entry.vpn0 === io.searchReq.vpn0 && validBits(i) === 1.U){
+                outBuffer := entry.pte
+                hit := true.B
+            }
+        }}
+    }
     
     // situation 2: insert
-    def insert(entry: TLBEntry): Unit = {
-        val vaccant = validBits.asBools.map(!_).reduce(_||_)
-        val firstAvailable = PriorityEncoder(validBits.asBools.map(!_))
-        when (vaccant){
-            entries(firstAvailable) := entry
-            validBits(firstAvailable) := 1.U
-        }.otherwise{
-            entries(random) := entry
-        }
-    }
-    // when(io.insertReq.submit){
+    // def insert(entry: TLBEntry): Unit = {
     //     val vaccant = validBits.asBools.map(!_).reduce(_||_)
     //     val firstAvailable = PriorityEncoder(validBits.asBools.map(!_))
     //     when (vaccant){
-    //         entries(firstAvailable) := io.insertReq.entry
+    //         entries(firstAvailable) := entry
     //         validBits(firstAvailable) := 1.U
     //     }.otherwise{
-    //         entries(random) := io.insertReq.entry
+    //         entries(random) := entry
     //     }
     // }
+    when(io.insertReq.submit){
+        val vaccant = validBits.asBools.map(!_).reduce(_||_)
+        val firstAvailable = PriorityEncoder(validBits.asBools.map(!_))
+        when (vaccant){
+            entries(firstAvailable) := io.insertReq.entry
+            validBits := validBits.bitSet(firstAvailable, true.B)
+        }.otherwise{
+            entries(random) := io.insertReq.entry
+        }
+    }
 
     // clear
     when(ctrlIO.clear){

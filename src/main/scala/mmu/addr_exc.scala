@@ -52,10 +52,11 @@ object AddressException {
     def checkPagePermissionLevel1(pte: PageTableEntry, privilege: UInt,
     fetch: Bool, load: Bool, store: Bool, sum: Bool): Error = {
         val error = WireInit(0.U.asTypeOf(new Error))
-        val pageFault = (
+        val pageFault = Wire(Bool())
+        pageFault := (
             (pte.V === false.B) ||
-            (privilege === U_LEVEL && pte.U === false.B) ||
-            (privilege === S_LEVEL && pte.U === true.B && !sum)
+            (privilege === U_LEVEL && pte.U === false.B)
+            // (privilege === S_LEVEL && pte.U === true.B && !sum)
         )
         error.en := pageFault
         error.code := MuxCase(0.U, Seq(
@@ -70,29 +71,28 @@ object AddressException {
 
     def checkPagePermissionLevel2(pte: PageTableEntry, privilege: UInt, 
     fetch: Bool, load: Bool, store: Bool, sum: Bool, offset: UInt): Error = {
-        val error = WireInit(0.U.asTypeOf(new Error))
+        val error1 = WireInit(0.U.asTypeOf(new Error))
+        val error2 = WireInit(0.U.asTypeOf(new Error))
         val paddr = Cat(pte.ppn1, pte.ppn0, offset)(31, 0)
-        error := checkAddressFormat(paddr, fetch, load, store)
-        when (error.en) {
-            return error
-        }
-        val pageFault = (
-            (pte.V === false.B) ||
-            (fetch && pte.X === false.B) ||
-            (load && pte.R === false.B) ||
-            (store && pte.W === false.B) ||
-            (privilege === U_LEVEL && pte.U === false.B) ||
-            (privilege === S_LEVEL && pte.X === true.B) ||
-            (privilege === S_LEVEL && pte.U === true.B && !sum)
+        error1 := checkAddressFormat(paddr, fetch, load, store)
+        val pageFault = Wire(Bool())
+        pageFault := (
+        (pte.V === false.B) ||
+        (fetch && pte.X === false.B) ||
+        (load && pte.R === false.B) ||
+        (store && pte.W === false.B) ||
+        (privilege === U_LEVEL && pte.U === false.B) ||
+        (privilege === S_LEVEL && pte.X === true.B)
+        // ((privilege === S_LEVEL) & (pte.U === true.B) & (!sum))
         )
-        error.en := pageFault
-        error.code := MuxCase(0.U, Seq(
+        error2.en := pageFault
+        error2.code := MuxCase(0.U, Seq(
             pageFault -> MuxCase(0.U, Seq(
                 fetch -> EC_FETCH_PF,
                 load -> EC_LOAD_PF,
                 store -> EC_STORE_PF
             ))
         ))
-        error
+        Mux(error1.en, error1, error2)
     }
 }

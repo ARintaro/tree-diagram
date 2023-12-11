@@ -111,6 +111,9 @@ class ExceptionUnit extends Module with InstructionConstants {
 
     val satp = RegInit(0.U.asTypeOf(new csr_satp_t)) // satp
 
+    // BoringUtils.addSource(status.sum, "statusSum")
+    BoringUtils.addSource(satp, "satp")
+
     val mstatusDebug = WireInit(0.U(32.W))
     mstatusDebug := status.reg(M_LEVEL)
     val mcauseDebug = WireInit(0.U(32.W))

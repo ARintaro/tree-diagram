@@ -28,6 +28,9 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
     val flush = Input(Bool())
   })
 
+  // val dmmu = Module(new DataMemoryManagementUnit)
+  // val tlb = Module(new TranslationLookasideBuffer)
+
   // F0: 仲裁发射
   // F1: 读寄存器、数据旁路
   // F2: 数据旁路；访问内存、store buffer
@@ -108,7 +111,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 
   val f2_done = !stall || !f2_valid
 
-  // TODO: 使用f2_word_vaddr_wire访问 MMU，Dcache
+  // TODO: 使用f2_vaddr_wire访问 MMU，Dcache
   io.cacheFindVaddr := f2_vaddr_wire
 
   when(f2_done) {
@@ -122,6 +125,8 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
     f2_valid := f1_valid
     f2_prd := f1_ins.prd_or_prs2
     f2_extType := f1_ins.extType
+
+    // tlb.search(f2_vaddr_wire.asTypeOf(new VirtualAddress))
 
     when(!f1_done) {
       f1_valid := false.B
