@@ -2,9 +2,6 @@ package core
 
 import chisel3._
 import chisel3.util._
-import scala.collection.DebugUtils
-import scala.collection.DebugUtils
-import scala.annotation.newMain
 import chisel3.util.experimental.BoringUtils
 import PrivilegeLevel._
 
@@ -17,7 +14,9 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
     val regWrite = new RegisterWriteRequest
     val newStore = new NewStoreRequest // 连接storeBuffer
     val findStore = new StoreFindRequest // 连接storeBuffer
-    val bus = BusMasterInterface()
+    
+    val devBus = BusMasterInterface()
+    val memBus = BusMasterInterface()
 
     val robHead = Input(UInt(BackendConfig.robIdxWidth))
     // val robEmpty = Input(Bool())
@@ -29,11 +28,18 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 
   val ctrlIO = IO(new Bundle {
     val flush = Input(Bool())
+
+    val clearTLB = Input(Bool())
   })
 
   val dmmu = Module(new DataMemoryManagementUnit)
   val tlb = Module(new TranslationLookasideBuffer)
-  val satp = WireInit(0.U.asTypeOf(new csr_satp))
+
+  dmmu.busIO <> io.memBus
+
+  tlb.ctrlIO.clear := ctrlIO.clearTLB
+
+  val satp = WireInit(0.U.asTypeOf(new csr_satp_t))
   val priv = WireInit(0.U(2.W))
   BoringUtils.addSink(priv, "globalPrivilegeLevel")
   BoringUtils.addSink(satp, "satp")
@@ -109,8 +115,6 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   val f2_valid = RegInit(false.B)
   val f2_extType = RegInit(false.B)
 
-  val f2_result = RegInit(0.U.asTypeOf(new PageTableEntry))
-
   val f2_sideway = BackendUtils.SearchSideway(f1_ins.prs1, f1_ins.prd_or_prs2)
   val f2_src1_wire = Mux(f2_sideway(0).valid, f2_sideway(0).value, f1_src1)
   val f2_src2_wire = Mux(f2_sideway(1).valid, f2_sideway(1).value, f1_src2)
@@ -120,13 +124,8 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 
   val f2_done = !stall || !f2_valid
 
-  
-
-  // TODO: 使用f2_vaddr_wire访问 MMU，Dcache
   io.cacheFindVaddr := f2_vaddr_wire
-  tlb.io.search.vpn1 := f2_vaddr_wire(31, 22)
-  tlb.io.search.vpn0 := f2_vaddr_wire(21, 12)
-  tlb.io.search.asid := satp.asid
+  tlb.io.search := f2_vaddr_wire.asTypeOf(new VirtualAddress).GetTag(satp.asid)
 
   when(f2_done) {
     f2_vaddr := f2_vaddr_wire
@@ -139,9 +138,6 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
     f2_valid := f1_valid
     f2_prd := f1_ins.prd_or_prs2
     f2_extType := f1_ins.extType
-    f2_result := tlb.io.result
-
-    // tlb.search(f2_vaddr_wire.asTypeOf(new VirtualAddress))
 
     when(!f1_done) {
       f1_valid := false.B
@@ -166,44 +162,21 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   val f3_addrLow2 = RegInit(0.U(2.W))
   val f3_memLen = RegInit(0.U(2.W))
   val f3_extType = RegInit(false.B)
-  val f3_word_addr = RegInit(0.U(BusConfig.ADDR_WIDTH))
   val f3_bus_data = RegInit(false.B)
-
+  val f3_vaddr = RegInit(0.U(32.W))
+  val f3_exception = RegInit(0.U.asTypeOf(new Exception))
 
   val f3_first_in = RegInit(false.B)
   val f3_paddr_valid = RegInit(false.B)
   val f3_paddr = RegInit(0.U(BusConfig.ADDR_WIDTH))
 
   f3_first_in := !stall
+
   val f3_paddr_wire = WireInit(0.U(BusConfig.ADDR_WIDTH))
   val f3_paddr_valid_wire = WireInit(false.B)
-
   val f3_word_paddr_wire = Cat(f3_paddr_wire(31, 2), 0.U(2.W))
+
   f3_addrLow2 := f3_paddr_wire(1, 0)
-
-  dmmu.io.vaddr := f2_vaddr.asTypeOf(new VirtualAddress)
-  dmmu.io.in := f2_result
-
-  when (f3_first_in) {
-    when (satp.mode === 0.U || priv === M_LEVEL){
-      f3_paddr_wire := f2_vaddr
-      f3_paddr_valid_wire := true.B
-      f3_paddr_valid := true.B
-      f3_paddr := f3_paddr_wire
-    } .elsewhen(f2_result.hit){
-      f3_paddr_wire := Cat(f2_result.ppn1, f2_result.ppn0, f2_vaddr(11, 0))(31, 0)
-      f3_paddr_valid_wire := true.B
-      f3_paddr_valid := true.B
-      f3_paddr := f3_paddr_wire
-    } .otherwise {
-
-    }
-  } .otherwise {
-    f3_paddr_valid_wire := f3_paddr_valid
-    f3_paddr_wire := f3_paddr
-  }
-
-  
 
   io.findStore.paddr := f3_word_paddr_wire
 
@@ -213,11 +186,11 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   io.newStore.store.value := f2_data
   io.newStore.store.paddr := f3_word_paddr_wire
 
-  io.bus.master_turn_off()
+  io.devBus.master_turn_off()
 
-  io.bus.dataBytesSelect := "b1111".U
-  io.bus.dataMode := false.B
-  io.bus.dataWrite := DontCare
+  io.devBus.dataBytesSelect := "b1111".U
+  io.devBus.dataMode := false.B
+  io.devBus.dataWrite := DontCare
 
   val f3_store_type_wire = WireInit(0.U(STORE_TYPE_WIDTH))
   val f3_wakeup_wire = WireInit(false.B)
@@ -228,17 +201,56 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   f3_storeType := f3_store_type_wire
   f3_memLen := f2_memLen
   f3_extType := f2_extType
-  f3_word_addr := f3_word_paddr_wire
-
-  
+  f3_vaddr := f2_vaddr
 
   when(f2_valid) {
+    when(f3_first_in) {
+      when(satp.mode === 0.U || priv === M_LEVEL) {
+        f3_paddr_wire := f2_vaddr
+        f3_paddr_valid_wire := true.B
+      }.elsewhen(tlb.io.result.hit && false.B) {
+        // 暂时关闭tlb
+        val pte = tlb.io.result.pte
+        f3_paddr_wire := Cat(pte.ppn1, pte.ppn0, f2_vaddr(11, 0))(31, 0)
+        f3_paddr_valid_wire := true.B
+      }.otherwise {
+        f3_paddr_wire := DontCare
+        f3_paddr_valid_wire := false.B
+
+        dmmu.io.stb := true.B
+        dmmu.io.vaddr := f2_vaddr.asTypeOf(new VirtualAddress)
+      }
+
+      f3_paddr_valid := true.B
+      f3_paddr := f3_paddr_valid_wire
+      f3_exception.valid := false.B
+
+    }.otherwise {
+      f3_paddr_valid_wire := f3_paddr_valid
+      f3_paddr_wire := f3_paddr
+
+      when(dmmu.io.ack && !f3_paddr_valid) {
+        f3_paddr_valid := true.B
+        val pte = dmmu.io.entry
+        f3_paddr := Cat(pte.ppn1, pte.ppn0, f2_vaddr(11, 0))(31, 0)
+        f3_exception := dmmu.io.exception
+
+        when (pte.V && !f3_exception.valid) {
+          tlb.io.insert.tag := f2_vaddr.asTypeOf(new VirtualAddress).GetTag(satp.asid)
+          tlb.io.insert.entry := pte
+          tlb.io.insert.submit := true.B
+        }
+
+      }
+
+    }
+
     when(f3_paddr_valid_wire) {
-      io.bus.addr := f3_word_paddr_wire
+      io.devBus.addr := f3_word_paddr_wire
       when(f2_memType) {
         // store
         // TODO : MMIO_BUFFER
-        f3_store_type_wire := Mux(io.bus.mmio, STORE_MMIO, STORE_RAM)
+        f3_store_type_wire := Mux(io.devBus.mmio, STORE_MMIO, STORE_RAM)
         io.newStore.valid := true.B
         when(io.newStore.succ) {
           // 写入 Store Buffer 成功
@@ -251,18 +263,9 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
         }
 
       }.otherwise {
-        // load
-        // TODO : LOAD_MMIO
-        f3_store_type_wire := Mux(io.bus.mmio, LOAD_MMIO, LOAD_RAM)
+        f3_store_type_wire := Mux(io.devBus.mmio, LOAD_MMIO, LOAD_RAM)
 
-        // printf(
-        //   cf"[Mem Cache Find] robIdx $f2_robIdx paddr 0x${f3_word_paddr_wire}%x paddr_tag 0x${f3_word_paddr_wire(
-        //       BackendConfig.dcacheTagEnd,
-        //       BackendConfig.dcacheTagBegin
-        //     )}%x entry_tag 0x${io.cacheResult.tag}%x ram_addr 0x${f3_word_paddr_wire(BackendConfig.dcacheIndexEnd, BackendConfig.dcacheIndexBegin)}%x  data 0x${io.cacheResult.data}%x, bytes ${io.cacheResult.bytesEnable}\n"
-        // )
-
-        when(io.findStore.valid && ~io.bus.mmio) {
+        when(io.findStore.valid && ~io.devBus.mmio) {
           // 在 Store Buffer 中找到数据
 
           when((io.findStore.bytes & f2_bytes) === f2_bytes) {
@@ -289,19 +292,18 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
             BackendConfig.dcacheTagBegin
           ) && f3_first_in
         ) {
-          assert(!io.bus.mmio)
+          assert(!io.devBus.mmio)
           // Dcache Hit
           f3_valid := true.B
           f3_bus_data := false.B
           f3_wakeup_wire := true.B
           f3_data := io.cacheResult.data
 
-
         }.otherwise {
           // 在 Buffer 中找不到数据，需要自行 load
-          io.bus.stb := !io.bus.mmio || (io.robHead === f2_robIdx && io.findStore.empty)
+          io.devBus.stb := !io.devBus.mmio || (io.robHead === f2_robIdx && io.findStore.empty)
 
-          when(io.bus.ack) {
+          when(io.devBus.ack) {
             f3_bus_data := true.B
             f3_valid := true.B
             f3_wakeup_wire := true.B
@@ -316,6 +318,11 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
       stall := true.B
       f3_valid := false.B
     }
+    
+    when (!f3_first_in && f3_exception.valid) {
+      stall := false.B
+      f3_valid := true.B
+    }
   }.otherwise {
     stall := false.B
     f3_valid := false.B
@@ -323,11 +330,12 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
 
   BackendUtils.BroadcastWakeup(index, f2_prd, f3_wakeup_wire)
 
+
   // F4 写回ROB
 
-  val f4_write_rd_wire = WireInit(f3_writeRd && f3_valid)
+  val f4_write_rd_wire = WireInit(f3_writeRd && f3_valid && !f3_exception.valid)
 
-  val f4_raw_data_wire = Mux(f3_bus_data, io.bus.dataRead, f3_data)
+  val f4_raw_data_wire = Mux(f3_bus_data, io.devBus.dataRead, f3_data)
   val f4_shift_data_wire = f4_raw_data_wire >> (f3_addrLow2 << 3)
   val f4_data_wire = WireInit(
     MuxLookup(f3_memLen, 0.U)(
@@ -354,22 +362,22 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
   io.robComplete.valid := f3_valid
   io.robComplete.robIdx := f3_robIdx
   io.robComplete.jump := false.B
-  io.robComplete.exception := false.B
-  io.robComplete.exceptionCode := DontCare
-  io.robComplete.jumpTarget := DontCare
+  io.robComplete.exception := f3_exception.valid
+  io.robComplete.exceptionCode := f3_exception.code
+  io.robComplete.jumpTarget := f3_vaddr
   io.robComplete.storeType := f3_storeType
   io.robComplete.csrTag := false.B
 
   // LOAD出的数据写回缓存
   io.cacheWrite.valid := f3_storeType === LOAD_RAM && f4_write_rd_wire && f3_bus_data
-  io.cacheWrite.paddr := f3_word_addr
+  io.cacheWrite.paddr := Cat(f3_paddr(31, 2), 0.U(2.W))
   io.cacheWrite.bytesEnable := "b1111".U
   io.cacheWrite.data := f4_raw_data_wire
 
   if (DebugConfig.printWriteBack) {
     when(io.regWrite.valid) {
       DebugUtils.Print(
-        cf"[mem] Pipe${index} robIdx $f3_robIdx writeback, rd: ${f3_prd}, value: 0x${f4_data_wire}%x, bus_data: 0x${io.bus.dataRead}%x"
+        cf"[mem] Pipe${index} robIdx $f3_robIdx writeback, rd: ${f3_prd}, value: 0x${f4_data_wire}%x, bus_data: 0x${io.devBus.dataRead}%x"
       )
     }
     when(io.robComplete.valid) {

@@ -40,7 +40,7 @@ object AddressException {
       (paddr & TIMER_MASK.U) === TIMER_START.U) // TODO: 其他外设
   }
 
-  def CheckFetchAddress(paddr: UInt, entry: PageTableEntry, privilege: PrivilegeLevel): Exception = {
+  def CheckFetchAddress(paddr: UInt, entry: PageTableEntry, privilege: UInt) : Exception = {
     val exception = WireInit(0.U.asTypeOf(new Exception))
     val misaligned = (paddr(1, 0) =/= 0.U)
     val invalid = ~CheckValidRamAddress(paddr)
@@ -53,6 +53,7 @@ object AddressException {
         pageFault -> EC_FETCH_PF
       )
     )
+    exception
   }
 
   def checkAddressFormat(

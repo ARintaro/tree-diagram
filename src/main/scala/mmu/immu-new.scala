@@ -26,6 +26,7 @@ class InstructionMemoryManagementUnitNew extends Module {
   val ctrlIO = IO(new Bundle {
     // TODO: sfence.vma 更精细的清空TLB
     val clearTLB = Input(Bool())
+    val flush = Input(Bool())
   })
 
   val satp = WireInit(0.U.asTypeOf(new csr_satp_t))
@@ -43,9 +44,7 @@ class InstructionMemoryManagementUnitNew extends Module {
   val walkResult = RegInit(0.U.asTypeOf(new PageTableEntry))
   val walkException = RegInit(0.U.asTypeOf(new Exception))
 
-  when (ctrlIO.clearTLB) {
-    walkResultValid := false.B
-  }
+  
 
   // F1
   tlb.io.search := f1_io.vaddr.GetTag(satp.asid)
@@ -139,19 +138,19 @@ class InstructionMemoryManagementUnitNew extends Module {
       walkResult := walkResultWire
 
       when (walkResultWire.V) {
-        walkState := level3
-        busIO.stb := true.B
         when(CheckValidRamAddress(busIO.addr)){
-          walkState := level1
+          walkState := level3
           busIO.stb := true.B
         }.otherwise{
           walkResultValid := true.B
           walkException.valid := true.B
           walkException.code := EC_IA_FAULT
-          state := idle
+          walkState := idle
         }       
       } .otherwise {
         walkResultValid := true.B
+        walkException.valid := true.B
+        walkException.code := EC_FETCH_PF
         walkState := idle
       }
 
@@ -174,9 +173,17 @@ class InstructionMemoryManagementUnitNew extends Module {
         tlb.io.insert.tag := walkResultTag
         tlb.io.insert.entry := walkResultWire
         tlb.io.insert.submit := true.B
+      } .otherwise {
+        walkException.valid := true.B
+        walkException.code := EC_FETCH_PF
       }
 
     }
+  }
+
+  when (ctrlIO.clearTLB || ctrlIO.flush) {
+    walkResultValid := false.B
+    walkState := idle 
   }
 
 }

@@ -265,7 +265,9 @@ class ReorderBuffer extends Module with InstructionConstants {
       io.newException.exceptionCode := invalidEntry.exceptionCode
       io.newException.precisePC := invalidEntry.vaddr
       io.newException.csrTag := invalidEntry.csrTag
-      io.newException.rawExceptionValue2 := 0.U // TODO: 关于mtval的赋值，我们还不考虑
+
+      // 使用jumpTarget充当mtval
+      io.newException.rawExceptionValue2 := invalidEntry.jumpTarget
       if (DebugConfig.printException) {
         DebugUtils.Print("=== Exception ===")
         DebugUtils.Print(cf"Commit Exception ${invalidEntry.exceptionCode}")

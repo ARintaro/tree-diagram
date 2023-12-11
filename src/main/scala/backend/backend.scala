@@ -13,6 +13,7 @@ class Backend extends Module {
     val excRedirect = Output(new RedirectRequest)
 
     val devBus = Vec(2, BusMasterInterface())
+    val memBus = BusMasterInterface()
     val robCount = Output(UInt(BackendConfig.robIdxWidth))
   })
 
@@ -109,7 +110,8 @@ class Backend extends Module {
   memPipe.io.regWrite <> registers.io.writes(BackendConfig.intPipelineNum)
   memPipe.io.findStore <> storeBuffer.io.finds(0)
   memPipe.io.newStore <> storeBuffer.io.news
-  memPipe.io.bus <> io.devBus(0)
+  memPipe.io.devBus <> io.devBus(0)
+  memPipe.io.memBus <> io.memBus
   memPipe.io.robHead := rob.io.head
   // memPipe.io.robEmpty := rob.io.empty
   memPipe.io.cacheResult := dataCache.f2_io.entry
