@@ -55,6 +55,7 @@ object RV32IPattern {
   val mretPattern = BitPat("b00110000001000000000000001110011")
   val sretPattern = BitPat("b00010000001000000000000001110011")
   val fenceiPattern = BitPat("b00000000000000000001000000001111")
+  val sfencePattern = BitPat("b0001001??????????000000001110011")
 }
 
 // 取指单元拉取出的指令
@@ -164,6 +165,7 @@ trait InstructionConstants {
   def ECALL = 9.U(CSR_WIDTH)
   def EBREAK = 10.U(CSR_WIDTH)
   def FENCEI = 11.U(CSR_WIDTH)
+  def SFENCE_VMA = 12.U(CSR_WIDTH)
 }
 
 // 解码单元解码出的指令

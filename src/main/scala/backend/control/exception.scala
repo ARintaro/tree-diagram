@@ -168,7 +168,8 @@ class ExceptionUnit extends Module with InstructionConstants {
         io.reference.csrType === CSRRW || io.reference.csrType === CSRRS || io.reference.csrType === CSRRC || io.reference.csrType === CSRRWI || io.reference.csrType === CSRRSI || io.reference.csrType === CSRRCI
     )
     val conductFencei = io.exc.valid && !intoException && !returnFromException && io.reference.csrType === FENCEI
-    
+    val conductSfence = io.exc.valid && !intoException && !returnFromException && io.reference.csrType === SFENCE_VMA
+
     when (io.exc.valid) {
         if (DebugConfig.printException) {
             DebugUtils.Print("[EXCU]!!!Post Decode")
@@ -457,5 +458,7 @@ class ExceptionUnit extends Module with InstructionConstants {
         }
     }.elsewhen(conductFencei) {
         ctrlIO.clearICache := true.B
+    }.elsewhen(conductSfence) {
+        ctrlIO.clearTLB := true.B
     }
 }

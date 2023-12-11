@@ -40,11 +40,11 @@ class TreeDiagram extends Module {
 
   // 将Buses的输出连接到SramController的输入
   for (i <- 0 until memBusNum) {
-    memBuses(i).io.slaves(0) <> baseRam.io.masters(i+ memBusNum)
+    memBuses(i).io.slaves(0) <> baseRam.io.masters(i+ devBusNum)
     memBuses(i).io.allocate(0).start := BusConfig.BASE_RAM_START.U
     memBuses(i).io.allocate(0).mask := BusConfig.BASE_RAM_MASK.U
 
-    memBuses(i).io.slaves(1) <> extRam.io.masters(i+ memBusNum)
+    memBuses(i).io.slaves(1) <> extRam.io.masters(i+ devBusNum)
     memBuses(i).io.allocate(1).start := BusConfig.EXT_RAM_START.U
     memBuses(i).io.allocate(1).mask := BusConfig.EXT_RAM_MASK.U
   }
@@ -80,9 +80,8 @@ class TreeDiagram extends Module {
   
 
   ifu.ctrlIO.clearIcache := backend.ctrlIO.clearICache
-  ifu.ctrlIO.clearTLB := false.B
+  ifu.ctrlIO.clearTLB := backend.ctrlIO.clearTLB
   ifu.ctrlIO.flush := backend.ctrlIO.flushPipeline
-  // TODO: 将FENCEI信号(backend.ctrlIO.clearICache)接到Icache
   decoder.ctrlIO.flush := backend.ctrlIO.flushPipeline
   decoder.io.robCount := backend.io.robCount
 
