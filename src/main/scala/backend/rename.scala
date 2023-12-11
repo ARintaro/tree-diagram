@@ -300,7 +300,7 @@ class RenameUnit extends Module
 
   io.done := io.nextDone
 
-  DebugUtils.Print(cf"RenameUnit firstInReg: ${firstInReg} nextDone: ${io.nextDone}")
+  // DebugUtils.Print(cf"RenameUnit firstInReg: ${firstInReg} nextDone: ${io.nextDone}")
 
   for (i <- 0 until FrontendConfig.decoderNum) {
     // 连接renameTable
@@ -329,8 +329,6 @@ class RenameUnit extends Module
         DebugUtils.Print(base)
       }
     }
-
-    DebugUtils.Print(cf"Rename -> Dispatch Buffer ${i} ${outBuffer(i)}")
   }
 
   when (io.nextDone) {

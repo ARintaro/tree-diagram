@@ -35,7 +35,6 @@ class TestBench extends Module {
 
   } else {
     top.io.uart.rxd := DontCare
-    io.uart_busy := DontCare
 
     BoringUtils.addSource(io.uart_data, "uart_data")
     BoringUtils.addSource(io.uart_start, "uart_start")

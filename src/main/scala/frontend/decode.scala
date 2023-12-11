@@ -163,7 +163,7 @@ class DecodeUnit extends Module {
   val inCount = PopCount(io.in.map(_.valid))
   val robSucc = inCount + outBufferCount <= (BackendConfig.robSize - 1).U - io.robCount 
 
-  DebugUtils.Print(cf"robSucc ${robSucc} inCount ${inCount} robCount ${io.robCount} outBufferCount ${outBufferCount}")
+  // DebugUtils.Print(cf"robSucc ${robSucc} inCount ${inCount} robCount ${io.robCount} outBufferCount ${outBufferCount}")
   
   for (i <- 0 until FrontendConfig.decoderNum) {
     // 如果自己是气泡，不管后面准没准备好都可以ready

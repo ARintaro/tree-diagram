@@ -49,9 +49,13 @@ class UartController extends Module {
     val dataWire = Wire(UInt(8.W))
     val startWire = Wire(Bool())
     
+    val cooldown = RegInit(0.U(10.W))
+
+    cooldown := Mux(cooldown <= 1.U, 0.U, cooldown - 1.U)
+
     BoringUtils.addSink(dataWire, "uart_data")
     BoringUtils.addSink(startWire, "uart_start")
-    BoringUtils.addSource(dataReady, "uart_busy")
+    BoringUtils.addSource(WireInit(dataReady || cooldown =/= 0.U), "uart_busy")
 
     when (startWire) {
       assert(!dataReady)
@@ -60,10 +64,13 @@ class UartController extends Module {
     }
 
     val dataOut = WireInit(0.U(8.W))
-    val dataOutReady = WireInit(false.B)
+    val dataOutReady = WireInit(false.B)    
 
     dontTouch(dataOut)
     dontTouch(dataOutReady)
+
+    
+    
 
     when (busy) {
       busy := false.B
@@ -73,7 +80,8 @@ class UartController extends Module {
         when (io.bus.addr === BusConfig.UART_START.U) {
           dataOut := io.bus.dataWrite(7, 0)
           dataOutReady := true.B
-          printf(cf"Uart Receive Data 0x$data%x, assci $data%c\n")
+          cooldown := 64.U
+          printf(cf"Uart Receive Data 0x$dataOut%x, assci $dataOut%c\n")
 
         } .elsewhen(io.bus.addr === (BusConfig.UART_START + 4).U) {
           assert(io.bus.dataWrite === 0.U, "read only")
@@ -84,9 +92,10 @@ class UartController extends Module {
         // Read
         when (io.bus.addr === BusConfig.UART_START.U) {
           io.bus.dataRead := data
+          cooldown := 64.U
           dataReady := false.B
         } .elsewhen(io.bus.addr === (BusConfig.UART_START + 4).U) {
-          io.bus.dataRead := Cat(0.U(8.W), 0.U(8.W), 0x20.U | dataReady, 0.U(8.W))
+          io.bus.dataRead := Cat(0.U(8.W), 0.U(8.W), Cat(0.U(2.W), cooldown === 0.U, 0.U(4.W), dataReady), 0.U(8.W))
         } .otherwise {
           assert(false.B, "uart addr error")
         }
@@ -94,6 +103,8 @@ class UartController extends Module {
     } .otherwise {
       when (io.bus.stb) {
         busy := true.B
+
+        DebugUtils.Print(cf"uart stb with addr 0x${io.bus.addr}%x")
       }
     }
 

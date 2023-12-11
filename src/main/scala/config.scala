@@ -35,10 +35,10 @@ object DebugConfig {
   var printFlush = true
   var printBusError = false
 
-  val printRob = false
+  val printRob = true
   val printRobNew = false
   val printPipeIns = false
-  val printStoreBuffer = false
+  val printStoreBuffer = true
 
   val printException = true
 

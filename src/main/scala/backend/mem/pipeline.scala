@@ -231,8 +231,8 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
         dmmu.io.vaddr := f2_vaddr.asTypeOf(new VirtualAddress)
       }
 
-      f3_paddr_valid := true.B
-      f3_paddr := f3_paddr_valid_wire
+      f3_paddr_valid := f3_paddr_valid_wire
+      f3_paddr := f3_paddr_wire
       f3_exception.valid := false.B
 
     }.otherwise {

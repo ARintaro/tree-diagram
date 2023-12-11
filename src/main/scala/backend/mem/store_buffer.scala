@@ -279,7 +279,7 @@ class CompressedStoreBuffer(findPortNum : Int) extends Module {
     sramAcked := sramAck
     cacheAcked := cacheAck
 
-    DebugUtils.Print(cf"store buffer, sramAck ${sramAck} cache ${cacheAck}")
+    // DebugUtils.Print(cf"store buffer, sramAck ${sramAck} cache ${cacheAck}")
 
     when (sramAcked && cacheAck) {
       busBusy := false.B
