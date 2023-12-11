@@ -20,7 +20,7 @@ class Backend extends Module {
   val ctrlIO = IO(new Bundle {
     val flushPipeline = Output(Bool())
     val clearICache = Output(Bool())
-    val clearTLB = Ouput(Bool())
+    val clearTLB = Output(Bool())
   })
 
 
@@ -218,7 +218,8 @@ class Backend extends Module {
 
   // FENCEI signal 
   ctrlIO.clearICache := excu.ctrlIO.clearICache
-  ctrlIO.clearTLB := false.B
+  ctrlIO.clearTLB := excu.ctrlIO.clearTLB
+  memPipe.ctrlIO.clearTLB := excu.ctrlIO.clearTLB
 
   // timerInterrupt signal
   dispatch.io.interruptInitializing := excu.io.interruptInitializing

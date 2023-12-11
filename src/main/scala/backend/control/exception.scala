@@ -51,7 +51,12 @@ class ExceptionUnit extends Module with InstructionConstants {
     val ctrlIO = IO(new Bundle {
         val flushPipeline = Output(Bool())
         val clearICache = Output(Bool())
+        val clearTLB = Output(Bool())
     })
+
+
+    // TODO: Clear TLB
+    ctrlIO.clearTLB := false.B
 
     /* ================= init ================= */
     io.regRead.id := 0.U

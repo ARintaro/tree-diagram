@@ -23,7 +23,7 @@ class TreeDiagram extends Module {
     DeviceUtils.AddExternalUart(io.uart)
   }
 
-  val memBusNum = 2
+  val memBusNum = 3
   val devBusNum = 2
   val busNum = memBusNum + devBusNum
 
@@ -36,10 +36,10 @@ class TreeDiagram extends Module {
   // 0: icache
   // 1: ifu tlb
 
-  val memBuses = Seq.fill(2)(Module(new BusMux(2)))
+  val memBuses = Seq.fill(memBusNum)(Module(new BusMux(2)))
 
   // 将Buses的输出连接到SramController的输入
-  for (i <- 0 until 2) {
+  for (i <- 0 until memBusNum) {
     memBuses(i).io.slaves(0) <> baseRam.io.masters(i+ memBusNum)
     memBuses(i).io.allocate(0).start := BusConfig.BASE_RAM_START.U
     memBuses(i).io.allocate(0).mask := BusConfig.BASE_RAM_MASK.U
@@ -51,6 +51,7 @@ class TreeDiagram extends Module {
 
   ifu.sramBusIO(0) <> memBuses(0).io.master
   ifu.sramBusIO(1) <> memBuses(1).io.master
+  backend.io.memBus <> memBuses(2).io.master
 
   // 带设备总线，用于mem_pipeline和storebuffer
   val devBuses = Seq.fill(2)(Module(new BusMux(4)))
@@ -76,6 +77,7 @@ class TreeDiagram extends Module {
 
   backend.io.devBus(0) <> devBuses(0).io.master
   backend.io.devBus(1) <> devBuses(1).io.master
+  
 
   ifu.ctrlIO.clearIcache := backend.ctrlIO.clearICache
   ifu.ctrlIO.clearTLB := false.B
