@@ -56,9 +56,15 @@ class ExceptionUnit extends Module with InstructionConstants {
         val clearTLB = Output(Bool())
     })
 
+    val base :: excited :: Nil = Enum(2)
+    val state = RegInit(base)
 
     // TODO: Clear TLB
     ctrlIO.clearTLB := false.B
+
+    /* ================ global privilege level ================ */
+    val globalPrivilegeLevel = RegInit(M_LEVEL)
+    BoringUtils.addSource(globalPrivilegeLevel, "globalPrivilegeLevel")
 
     /* ================= init ================= */
     io.regRead.id := 0.U
@@ -91,10 +97,6 @@ class ExceptionUnit extends Module with InstructionConstants {
 
         }
     }
-
-    /* ================ global privilege level ================ */
-    val globalPrivilegeLevel = RegInit(M_LEVEL)
-    BoringUtils.addSource(globalPrivilegeLevel, "globalPrivilegeLevel")
 
     /* =================== CSR =================== */
     val status = RegInit(0.U.asTypeOf(new csr_status_t)) // mstatus, sstatus
@@ -170,6 +172,24 @@ class ExceptionUnit extends Module with InstructionConstants {
 
     // TODO: satp
 
+    val f_intoException = RegInit(false.B)
+    val f_returnFromException = RegInit(false.B)
+    val f_conductCsrInst = RegInit(false.B)
+    val f_conductFencei = RegInit(false.B)
+    val f_conductSfence = RegInit(false.B)
+    // val f_csrType = RegInit(0.U(CSR_WIDTH))
+    val f_generalizedExceptionCode = RegInit(0.U(InsConfig.EXCEPTION_WIDTH))
+    val f_interruptPending = RegInit(false.B)
+    val f_exceptionValue = RegInit(0.U(32.W))
+    val f_csrWriteData = RegInit(0.U(32.W))
+    val f_writeCsrEn = RegInit(false.B)
+    val f_canWriteCsr = RegInit(false.B)
+    val f_precisePC = RegInit(0.U(32.W))
+    val f_csrAddr = RegInit(0.U(CSR_ADDR_WIDTH))
+    val f_delegException = RegInit(false.B)
+    val f_nextPC = RegInit(0.U(32.W))
+    val f_nextPriv = RegInit(0.U(2.W))
+
     /* ================ Post Decode ==============*/
     val intoException = !io.exc.csrTag && io.exc.valid // NOTE: 时钟中断也是广义异常，处理方式类似
     val returnFromException = io.exc.csrTag && io.exc.valid && (io.reference.csrType === MRET || io.reference.csrType === SRET) && !intoException
@@ -215,6 +235,7 @@ class ExceptionUnit extends Module with InstructionConstants {
         DebugUtils.Print(cf"mtip: ${ip.mtip}")
         DebugUtils.Print(cf"mtie: ${ie.mtie}")
     }
+    
     val interruptCode = Wire(UInt(InsConfig.EXCEPTION_WIDTH))
     interruptCode := MuxCase(0.U, Seq(
         meiOccur -> IT_M_EXT_INT,
@@ -224,8 +245,9 @@ class ExceptionUnit extends Module with InstructionConstants {
         stiOccur -> IT_S_TIMER_INT,
         ssiOccur -> IT_S_SOFT_INT
     ))
+    
+    val interruptPending = io.exc.interrupt
 
-    val interruptPending = io.exc.valid && io.exc.interrupt
     val generalizedExceptionCode = Mux(interruptPending, interruptCode, io.exc.exceptionCode)
 
     if (DebugConfig.printException) {
@@ -323,19 +345,12 @@ class ExceptionUnit extends Module with InstructionConstants {
             status.mpp,
             status.spp
           )
-        }
-
-        
+        }       
     }.otherwise{
         nextPC := io.exc.precisePC + 4.U
         nextPrivilegeLevel := globalPrivilegeLevel
     }
-    when (io.exc.valid || interruptPending) {
-        globalPrivilegeLevel := nextPrivilegeLevel
-        io.redirect.valid := true.B
-        io.redirect.target := nextPC
-    }
-    ctrlIO.flushPipeline := io.exc.valid // flush logic
+
     when (io.exc.valid) {
         if (DebugConfig.printException) {
             DebugUtils.Print("[EXCU]Redirect")
@@ -372,117 +387,145 @@ class ExceptionUnit extends Module with InstructionConstants {
     // }
 
     val exceptionValue = Mux(io.exc.exceptionCode === EC_ILLEGAL, io.rawExceptionValue1, io.exc.rawExceptionValue2) // FIXME: 这里之后还要完善
-    when(intoException || interruptPending){
-        when(delegException){
-            scause := Cat(interruptPending, Fill(27, 0.U), generalizedExceptionCode(3, 0)).asTypeOf(new csr_cause_t)
-            stval_reg := exceptionValue
-            status.spp := globalPrivilegeLevel
-            status.spie := status.sie
-            sepc_reg := Cat(io.exc.precisePC(31, 1), 0.U(1.W))
-            status.sie := false.B
-        }.otherwise{
-            mcause := Cat(interruptPending, Fill(27, 0.U), generalizedExceptionCode(3, 0)).asTypeOf(new csr_cause_t)
-            mtval_reg := exceptionValue
-            status.mpp := globalPrivilegeLevel
-            status.mpie := status.mie
-            mepc_reg := Cat(io.exc.precisePC(31, 1), 0.U(1.W))
-            status.mie := false.B
-        }
-    }.elsewhen(returnFromException){
-        when(globalPrivilegeLevel === M_LEVEL){
-            status.mie := status.mpie
-            status.mpie := true.B
-            status.mpp := U_LEVEL
-        }.elsewhen(globalPrivilegeLevel === S_LEVEL){
-            status.sie := status.spie
-            status.spie := true.B
-            status.spp := U_LEVEL
-        }
-    }.elsewhen(conductCsrInst && io.reference.writeCsrEn && canWriteCsr){
-        switch(io.reference.csrAddr){
-            is(CSR_MSTATUS_ADDR){
-                status := csrWriteData.asTypeOf(new csr_status_t)
+    
+    switch(state){
+        is(base){
+            when(io.exc.valid){
+                state := excited
+                f_intoException := intoException
+                f_returnFromException := returnFromException
+                f_conductCsrInst := conductCsrInst
+                f_conductFencei := conductFencei
+                f_conductSfence := conductSfence
+                // f_csrType := io.reference.csrType
+                f_generalizedExceptionCode := generalizedExceptionCode
+                f_interruptPending := interruptPending
+                f_canWriteCsr := canWriteCsr
+                f_exceptionValue := exceptionValue
+                f_csrWriteData := csrWriteData
+                f_writeCsrEn := io.reference.writeCsrEn
+                f_precisePC := io.exc.precisePC
+                f_csrAddr := io.reference.csrAddr
+                f_delegException := delegException
+                f_nextPC := nextPC
+                f_nextPriv := nextPrivilegeLevel
             }
-            is(CSR_MTVEC_ADDR){
-                assert(csrWriteData(1, 0) === 0.U, "Misaligned mtvec")
-                mtvec := csrWriteData.asTypeOf(new csr_tvec_t)
-            }
-            is(CSR_MIP_ADDR){
+        }
+        is(excited){
+            state := base
+            globalPrivilegeLevel := f_nextPriv
+            io.redirect.valid := true.B
+            io.redirect.target := f_nextPC
+            ctrlIO.flushPipeline := true.B
+            when(f_intoException || f_interruptPending){
+                when(f_delegException){
+                    scause := Cat(f_interruptPending, Fill(27, 0.U), f_generalizedExceptionCode(3, 0)).asTypeOf(new csr_cause_t)
+                    stval_reg := f_exceptionValue
+                    status.spp := globalPrivilegeLevel
+                    status.spie := status.sie
+                    sepc_reg := Cat(f_precisePC(31, 1), 0.U(1.W))
+                    status.sie := false.B
+                }.otherwise{
+                    mcause := Cat(f_interruptPending, Fill(27, 0.U), f_generalizedExceptionCode(3, 0)).asTypeOf(new csr_cause_t)
+                    mtval_reg := f_exceptionValue
+                    status.mpp := globalPrivilegeLevel
+                    status.mpie := status.mie
+                    mepc_reg := Cat(f_precisePC(31, 1), 0.U(1.W))
+                    status.mie := false.B
+                }
+            }.elsewhen(f_returnFromException){
                 when(globalPrivilegeLevel === M_LEVEL){
-                    ip.stip := csrWriteData(5)
+                    status.mie := status.mpie
+                    status.mpie := true.B
+                    status.mpp := U_LEVEL
+                }.elsewhen(globalPrivilegeLevel === S_LEVEL){
+                    status.sie := status.spie
+                    status.spie := true.B
+                    status.spp := U_LEVEL
                 }
-            }
-            is(CSR_MIE_ADDR){
-                ie := csrWriteData.asTypeOf(new csr_ie_t)
-            }
-            is(CSR_MSCRATCH_ADDR ){
-                mscratch_reg := csrWriteData
-            }
-            is(CSR_MEPC_ADDR){
-                if (DebugConfig.printException) {
-                    DebugUtils.Print("[EXCU]!!!Write CSR MEPC")
-                    DebugUtils.Print(cf" csrWriteData: 0x${Hexadecimal(csrWriteData)}")
+            }.elsewhen(f_conductCsrInst && f_writeCsrEn && f_canWriteCsr){
+                switch(f_csrAddr){
+                    is(CSR_MSTATUS_ADDR){
+                        status := f_csrWriteData.asTypeOf(new csr_status_t)
+                    }
+                    is(CSR_MTVEC_ADDR){
+                        assert(f_csrWriteData(1, 0) === 0.U, "Misaligned mtvec")
+                        mtvec := f_csrWriteData.asTypeOf(new csr_tvec_t)
+                    }
+                    is(CSR_MIP_ADDR){
+                        when(globalPrivilegeLevel === M_LEVEL){
+                            ip.stip := f_csrWriteData(5)
+                        }
+                    }
+                    is(CSR_MIE_ADDR){
+                        ie := f_csrWriteData.asTypeOf(new csr_ie_t)
+                    }
+                    is(CSR_MSCRATCH_ADDR ){
+                        mscratch_reg := f_csrWriteData
+                    }
+                    is(CSR_MEPC_ADDR){
+                        mepc_reg := Cat(f_csrWriteData(31, 1), 0.U(1.W))
+                    }
+                    is(CSR_MCAUSE_ADDR){
+                        mcause.interrupt := f_csrWriteData(31)
+                        assert(f_csrWriteData(30, 4) === 0.U)
+                        mcause.exceptionCode := f_csrWriteData(30, 0)
+                    }
+                    is(CSR_MHARTID_ADDR){
+                        mhartid_reg := f_csrWriteData
+                    }
+                    is(CSR_MIDELEG_ADDR){
+                        mideleg_reg := f_csrWriteData
+                    }
+                    is(CSR_MEDELEG_ADDR){
+                        medeleg_reg := f_csrWriteData
+                    }
+                    is(CSR_MTVAL_ADDR){
+                        mtval_reg := f_csrWriteData
+                        // mtval_reg(11) := false.B
+                    }
+                    is(CSR_SSTATUS_ADDR){
+                        status.sie := f_csrWriteData(1)
+                        status.spie := f_csrWriteData(5)
+                        status.spp := f_csrWriteData(8)
+                        status.sum := f_csrWriteData(18)
+                    }
+                    is(CSR_STVEC_ADDR){
+                        when(f_csrWriteData(1, 0) === 0.U){
+                            stvec := f_csrWriteData.asTypeOf(new csr_tvec_t)
+                        }
+                    }
+                    is(CSR_SIP_ADDR){
+                        // stip read-only
+                    }
+                    is(CSR_SIE_ADDR){
+                        ie.seie := f_csrWriteData(9)
+                        ie.stie := f_csrWriteData(5)
+                        ie.ssie := f_csrWriteData(1)
+                    }
+                    is(CSR_SSCRATCH_ADDR){
+                        sscratch_reg := f_csrWriteData
+                    }
+                    is(CSR_SEPC_ADDR){
+                        sepc_reg := Cat(f_csrWriteData(31, 1), 0.U(1.W))
+                    }
+                    is(CSR_SCAUSE_ADDR){
+                        scause.interrupt := f_csrWriteData(31)
+                        assert(f_csrWriteData(30, 4) === 0.U)
+                        scause.exceptionCode := f_csrWriteData(30, 0)
+                    }
+                    is(CSR_STVAL_ADDR){
+                        stval_reg := f_csrWriteData
+                    }
+                    is(CSR_SATP_ADDR){
+                        satp := f_csrWriteData.asTypeOf(new csr_satp_t)
+                    }
                 }
-                mepc_reg := Cat(csrWriteData(31, 1), 0.U(1.W))
-            }
-            is(CSR_MCAUSE_ADDR){
-                mcause.interrupt := csrWriteData(31)
-                assert(csrWriteData(30, 4) === 0.U)
-                mcause.exceptionCode := csrWriteData(30, 0)
-            }
-            is(CSR_MHARTID_ADDR){
-                mhartid_reg := csrWriteData
-            }
-            is(CSR_MIDELEG_ADDR){
-                mideleg_reg := csrWriteData
-            }
-            is(CSR_MEDELEG_ADDR){
-                medeleg_reg := csrWriteData
-            }
-            is(CSR_MTVAL_ADDR){
-                mtval_reg := csrWriteData
-                // mtval_reg(11) := false.B
-            }
-            is(CSR_SSTATUS_ADDR){
-                status.sie := csrWriteData(1)
-                status.spie := csrWriteData(5)
-                status.spp := csrWriteData(8)
-                status.sum := csrWriteData(18)
-            }
-            is(CSR_STVEC_ADDR){
-                when(csrWriteData(1, 0) === 0.U){
-                    stvec := csrWriteData.asTypeOf(new csr_tvec_t)
-                }
-            }
-            is(CSR_SIP_ADDR){
-                // stip read-only
-            }
-            is(CSR_SIE_ADDR){
-                ie.seie := csrWriteData(9)
-                ie.stie := csrWriteData(5)
-                ie.ssie := csrWriteData(1)
-            }
-            is(CSR_SSCRATCH_ADDR){
-                sscratch_reg := csrWriteData
-            }
-            is(CSR_SEPC_ADDR){
-                sepc_reg := Cat(csrWriteData(31, 1), 0.U(1.W))
-            }
-            is(CSR_SCAUSE_ADDR){
-                scause.interrupt := csrWriteData(31)
-                assert(csrWriteData(30, 4) === 0.U)
-                scause.exceptionCode := csrWriteData(30, 0)
-            }
-            is(CSR_STVAL_ADDR){
-                stval_reg := csrWriteData
-            }
-            is(CSR_SATP_ADDR){
-                satp := csrWriteData.asTypeOf(new csr_satp_t)
+            }.elsewhen(f_conductFencei) {
+                ctrlIO.clearICache := true.B
+            }.elsewhen(f_conductSfence) {
+                ctrlIO.clearTLB := true.B
             }
         }
-    }.elsewhen(conductFencei) {
-        ctrlIO.clearICache := true.B
-    }.elsewhen(conductSfence) {
-        ctrlIO.clearTLB := true.B
-    }
+    } 
 }

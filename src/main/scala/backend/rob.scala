@@ -332,7 +332,7 @@ class ReorderBuffer extends Module with InstructionConstants {
 
   val flush = ctrlIO.flushPipeline
   
-  val recover = RegInit(0.U(2.W))
+  val recover = RegInit(0.U(3.W))
 
   when (recover =/= 0.U) {
     tail := head
@@ -340,7 +340,7 @@ class ReorderBuffer extends Module with InstructionConstants {
     recover := recover >> 1
   } 
   when (flush) {
-    recover := "b11".U
+    recover := "b111".U
     tail := head
     head := head
   }
