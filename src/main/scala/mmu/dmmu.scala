@@ -32,8 +32,6 @@ class DataMemoryManagementUnit extends Module {
   BoringUtils.addSink(priv, "globalPrivilegeLevel")
   BoringUtils.addSink(satp, "satp")
 
-  assert(satp.mode === 0.U || !io.stb)
-
   val List(idle, level1, level2, level3, over) = Enum(5)
   val walkState = RegInit(idle)
 
@@ -57,6 +55,7 @@ class DataMemoryManagementUnit extends Module {
       when(io.stb) {
         busIO.stb := true.B
         dataMode := io.dataMode
+        walkState := level1
       }
     }
     is(level1) {
@@ -82,6 +81,10 @@ class DataMemoryManagementUnit extends Module {
         0.U(2.W)
       )(31, 0)
 
+      if (DebugConfig.printPageWalk) {
+        DebugUtils.Print(cf"Page Walk Level 1, vaddr 0x${vaddr.asUInt}%x, pte 0x${walkResultWire.asUInt}%x")
+      }
+
       walkResult := walkResultWire
 
       when(walkResultWire.V) {
@@ -104,6 +107,10 @@ class DataMemoryManagementUnit extends Module {
     }
     is (over) {
       val walkResultWire = busIO.dataRead.asTypeOf(new PageTableEntry)
+
+      if (DebugConfig.printPageWalk) {
+        DebugUtils.Print(cf"Page Walk Level 0, vaddr 0x${vaddr.asUInt}%x, pte 0x${walkResultWire.asUInt}%x")
+      }
 
       io.ack := true.B
       io.entry := walkResultWire

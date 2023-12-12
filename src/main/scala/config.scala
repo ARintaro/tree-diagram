@@ -14,9 +14,9 @@ object DebugConfig {
   var debug = false
   // 1520984
 
-  var printPart = false
-  var printBegin = 200000.U
-  var printEnd = 800000.U
+  var printPart = true
+  var printBegin = 40000.U
+  var printEnd = 100000.U
 
   var printRenameTable = false
   var printRenameUnitIn = false
@@ -45,6 +45,7 @@ object DebugConfig {
   var printBusy = false
   val printWakeup = false
   val printMem = false
+  val printPageWalk = true
 
   val printTimer = false
 }

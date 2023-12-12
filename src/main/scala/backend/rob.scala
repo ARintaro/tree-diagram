@@ -274,6 +274,7 @@ class ReorderBuffer extends Module with InstructionConstants {
         DebugUtils.Print("=== END ===")
       }
       commitValidsFinal(firstInvalidIdx) := true.B
+
     }.elsewhen(!commitJumpValid(firstInvalidIdx)) {
       // 分支预测失败
       

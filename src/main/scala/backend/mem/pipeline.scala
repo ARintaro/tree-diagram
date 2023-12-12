@@ -229,6 +229,10 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
         dmmu.io.stb := true.B
         dmmu.io.dataMode := f2_memType
         dmmu.io.vaddr := f2_vaddr.asTypeOf(new VirtualAddress)
+
+        if (DebugConfig.printPageWalk) {
+          DebugUtils.Print(cf"[Mem Pipe] TLB Miss, Start Page Walk, vaddr: 0x${f2_vaddr}%x")
+        }
       }
 
       f3_paddr_valid := f3_paddr_valid_wire
@@ -244,6 +248,10 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
         val pte = dmmu.io.entry
         f3_paddr := Cat(pte.ppn1, pte.ppn0, f2_vaddr(11, 0))(31, 0)
         f3_exception := dmmu.io.exception
+
+        if (DebugConfig.printPageWalk) {
+          DebugUtils.Print(cf"[Mem Pipe] Page Walk Ack 0x${f3_vaddr}%x -> 0x${f3_paddr}%x")
+        }
 
         when (pte.V && !f3_exception.valid) {
           tlb.io.insert.tag := f2_vaddr.asTypeOf(new VirtualAddress).GetTag(satp.asid)
