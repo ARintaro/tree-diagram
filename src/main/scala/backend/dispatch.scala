@@ -15,8 +15,6 @@ class DispatchUnit extends Module with InstructionConstants {
     val mem = Vec(FrontendConfig.decoderNum, Decoupled(new MemoryInstruction))
 
     val csr = Output(new CsrInstruction) // 连接ExceptionUnit
-
-    val interruptInitializing = Input(Bool())
   })
 
   val ctrlIO = IO(new Bundle {
@@ -37,8 +35,7 @@ class DispatchUnit extends Module with InstructionConstants {
     (memIssue.asUInt & VecInit(io.mem.map(_.ready)).asUInt) === memIssue.asUInt
 
   val succ = intSucc && memSucc
-  io.done := succ && !io.interruptInitializing
-
+  io.done := succ
   // DebugUtils.Print(cf"DispatchUnit succ: ${succ} intSucc: ${intSucc} memSucc: ${memSucc}")
 
   intIssue.foreach(_ := false.B)

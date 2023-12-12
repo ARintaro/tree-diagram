@@ -90,23 +90,20 @@ class ReorderBuffer extends Module with InstructionConstants {
     val uncertern = Output(Bool())
     val count = Output(UInt(BackendConfig.robIdxWidth))
 
-    // val timerInterrupt = Input(Bool()) 
     val robEmpty = Output(Bool())
 
-    val interruptPending = Input(Bool())
+    val interruptInitializing = Input(Bool())
   })
   
   val ctrlIO = IO(new Bundle {
     val flushPipeline = Output(Bool())
-    // val conductCsr = Output(Bool())
   })
-
-  val afterInterruption = RegInit(false.B)
 
   io.newException.valid := false.B
   io.newException.exceptionCode := 0.U
   io.newException.precisePC := 0.U
   io.newException.rawExceptionValue2 := 0.U
+  io.newException.interrupt := false.B
   io.newException.csrTag := false.B
 
   dontTouch(io.uncertern) // 确保时钟中断后，下一次提交的指令有 uncertern
@@ -191,6 +188,8 @@ class ReorderBuffer extends Module with InstructionConstants {
   // 处理Commit
   val inQueueMask = MaskUtil.GetValidMask(head, tail)
 
+  DebugUtils.Print(cf"RobIdx head: ${head} tail: ${tail} mask: ${Binary(inQueueMask)}")
+
   val commitValidsOne = Wire(Vec(BackendConfig.maxCommitsNum, Bool()))
   val commitEntry = Wire(Vec(BackendConfig.maxCommitsNum, new RobEntry))
 
@@ -213,10 +212,10 @@ class ReorderBuffer extends Module with InstructionConstants {
   val commitCsrValid = 
     VecInit(commitEntry.map(x => !x.csrTag))
 
-  // 第三个可能导致不被提交原因是执行指令过程中发生了异常
+  // 第三个可能导致不被提交原因是执行指令过程中发生了异常，或者中断正在初始化
   // commitExcValid 的意思是没有因为异常而重定向
   val commitExcValid = 
-    VecInit(commitEntry.map(x => !x.exception))
+    VecInit(commitEntry.map(x => !x.exception && !io.interruptInitializing))
 
   // 得到第二版的提交有效信号
   val commitValidsTwo = commitValidsOne
@@ -241,6 +240,7 @@ class ReorderBuffer extends Module with InstructionConstants {
   
   io.redirect.target := 0x10000001L.U
   io.newException.precisePC := entries(head - 1.U).jumpTarget
+  val afterInterrupt = RegInit(false.B)
   
   /* ================ 重定向逻辑 ================ */
   // 只要有一个指令的commitValidsFinal为False，就需要重定向并冲刷流水线
@@ -265,6 +265,9 @@ class ReorderBuffer extends Module with InstructionConstants {
       io.newException.exceptionCode := invalidEntry.exceptionCode
       io.newException.precisePC := invalidEntry.vaddr
       io.newException.csrTag := invalidEntry.csrTag
+      io.newException.interrupt := !invalidEntry.exception
+
+      afterInterrupt := io.newException.interrupt
 
       // 使用jumpTarget充当mtval
       io.newException.rawExceptionValue2 := invalidEntry.jumpTarget
@@ -273,7 +276,7 @@ class ReorderBuffer extends Module with InstructionConstants {
         DebugUtils.Print(cf"Commit Exception ${invalidEntry.exceptionCode}")
         DebugUtils.Print("=== END ===")
       }
-      commitValidsFinal(firstInvalidIdx) := true.B
+      commitValidsFinal(firstInvalidIdx) := ExceptionCode.CheckCommit(invalidEntry.exceptionCode)
 
     }.elsewhen(!commitJumpValid(firstInvalidIdx)) {
       // 分支预测失败
@@ -298,15 +301,6 @@ class ReorderBuffer extends Module with InstructionConstants {
 
   io.robEmpty := head === tail
 
-  // 时钟中断的提交，条件是ROB为空
-  // when(io.timerInterrupt && head === tail) {
-  //   io.newException.valid := true.B
-  //   io.newException.exceptionCode := ExceptionCode.IT_M_TIMER_INT 
-  //   io.newException.precisePC := entries(head).vaddr
-  //   io.newException.rawExceptionValue2 := 0.U
-  //   io.newException.csrTag := false.B
-  // }
-
   // 这里没有用寄存器暂存输出，时序扛不住的话需要加上
   commitsIO.zip(commitValidsFinal).zip(commitEntry).foreach {
     case ((out, valid), entry) => {
@@ -323,9 +317,9 @@ class ReorderBuffer extends Module with InstructionConstants {
     }
   }
 
-  val afterInterrupt = RegInit(false.B)
-  when (io.interruptPending) {
-    afterInterrupt := true.B
+  
+  when (commitValidsFinal(0)) {
+    afterInterrupt := false.B
   }
 
   io.uncertern := (commitValidsFinal.zip(commitEntry).map{
@@ -334,10 +328,6 @@ class ReorderBuffer extends Module with InstructionConstants {
     }
   }.reduce(_ || _)) || afterInterrupt
 
-  when (commitValidsFinal(0) && afterInterrupt) {
-    afterInterrupt := false.B
-  }
-
   head := head + PopCount(commitValidsFinal)
 
   val flush = ctrlIO.flushPipeline
@@ -345,24 +335,26 @@ class ReorderBuffer extends Module with InstructionConstants {
   val recover = RegInit(0.U(2.W))
 
   when (recover =/= 0.U) {
-    head := tail
+    tail := head
+    head := head
     recover := recover >> 1
   } 
   when (flush) {
     recover := "b11".U
-    head := tail
+    tail := head
+    head := head
   }
 
   if (DebugConfig.printRob) {
     DebugUtils.Print(cf"RobIdx head: ${head} tail: ${tail} count: ${io.count}")
     when(head =/= tail) {
       DebugUtils.Print("=== ROB ===")
-      DebugUtils.Print(cf"IDX | OVER | Jv | vaddr | store_type")
+      DebugUtils.Print(cf"IDX | OVER | Jv | vaddr | store_type | exception")
       for (i <- 0 until BackendConfig.robSize) {
         val idx = head + i.U
         when(inQueueMask(idx)) {
           val entry = entries(idx)
-          DebugUtils.Print(cf"${idx}  ${entry.completed} ${commitJumpValid(idx)}  0x${entry.vaddr}%x ${entry.storeType}")
+          DebugUtils.Print(cf"${idx}  ${entry.completed} ${commitJumpValid(idx)}  0x${entry.vaddr}%x ${entry.storeType} ${entry.exception}")
         }
       }
       // print commitValidsFinal
@@ -372,5 +364,9 @@ class ReorderBuffer extends Module with InstructionConstants {
   }
 
   assert(newsCount <= ((BackendConfig.robSize - 1).U - io.count))
+
+  // when (!(newsCount <= ((BackendConfig.robSize - 1).U - io.count))) {
+  //   DebugUtils.Print(cf"ERROR: ${newsCount} ${(BackendConfig.robSize - 1).U - io.count} ${io.count}")
+  // }
   // assert(PopCount(newIO.news.map(_.valid)) === newIO.newsCount)
 }   

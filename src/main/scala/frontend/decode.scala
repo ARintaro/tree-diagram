@@ -88,7 +88,7 @@ class Decoder extends Module with InstructionConstants {
       mretPattern  -> List(ALU_ADD , BRU_NONE, OP1_ZERO, OP2_ZERO, false.B, IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U                  , true.B , true.B , MRET   ),
       sretPattern  -> List(ALU_ADD , BRU_NONE, OP1_ZERO, OP2_ZERO, false.B, IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U                  , true.B , true.B , SRET   ),
       fenceiPattern-> List(ALU_ADD , BRU_NONE, OP1_ZERO, OP2_ZERO, false.B, IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U                  , true.B , true.B , FENCEI ),
-      sfencePattern-> List(ALU_ADD , BRU_NONE, OP1_ZERO, OP2_ZERO, false.B, IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U                  , true.B , true.B , SFENCE_VMA )
+      sfencePattern-> List(ALU_ADD , BRU_NONE, OP1_ZERO, OP2_ZERO, false.B, IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U                  , true.B , true.B , SFENCE_VMA ),
       
       // 3 additional instructions
       andnPattern  -> List(ALU_ANDN, BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U                  , true.B , false.B, CSRNONE),
@@ -104,6 +104,30 @@ class Decoder extends Module with InstructionConstants {
   io.out.writeRd := signals(4) & (io.in.inst(11, 7) =/= 0.U) & !io.out.exception
   io.out.immType := signals(5)
   io.out.exception := signals(6) | io.in.exception
+  if (DebugConfig.printDecode) {
+    // when(io.out.exception) {
+    //   DebugUtils.Print(cf"shi,laoye ${io.in.inst}")
+    // }
+    // DebugUtils.Print(cf"find an illegal instruction ${io.in.inst}")
+    when(io.in.inst === 0xc0001073L.U && io.valid){
+      DebugUtils.Print("SHI, LAOYE!!!")
+      // 打印这条指令所有解码结果：
+      DebugUtils.Print(cf"aluType ${io.out.aluType}")
+      DebugUtils.Print(cf"bruType ${io.out.bruType}")
+      DebugUtils.Print(cf"selOP1 ${io.out.selOP1}")
+      DebugUtils.Print(cf"selOP2 ${io.out.selOP2}")
+      DebugUtils.Print(cf"writeRd ${io.out.writeRd}")
+      DebugUtils.Print(cf"immType ${io.out.immType}")
+      DebugUtils.Print(cf"exception ${io.out.exception}")
+      DebugUtils.Print(cf"iqtType ${io.out.iqtType}")
+      DebugUtils.Print(cf"memType ${io.out.memType}")
+      DebugUtils.Print(cf"memLen ${io.out.memLen}")
+      DebugUtils.Print(cf"exceptionCode ${io.out.exceptionCode}")
+      DebugUtils.Print(cf"extType ${io.out.extType}")
+      // DebugUtils.Print(cf"predictJump ${io.out.predictJump}")
+      // DebugUtils.Print(cf"predictTarget ${io.out.predictTarget}")
+    }
+  }
   io.out.iqtType := signals(7)
   io.out.memType := signals(8)
   io.out.memLen := signals(9)
@@ -155,6 +179,15 @@ class DecodeUnit extends Module {
   val ctrlIO = IO(new Bundle {
     val flush = Input(Bool())
   })
+
+  // if (DebugConfig.printDecode) {
+  //   DebugUtils.Print("============== Decode Unit===============")
+  //   for(i <- 0 until FrontendConfig.decoderNum) {
+  //     when(io.out(i).valid && io.out(i).bits.exception) {
+  //       DebugUtils.Print(cf"chuola, jibamao${io.out(i).bits.inst}")
+  //     }
+  //   }
+  // }
   
   val decoders = VecInit(Seq.fill(FrontendConfig.decoderNum)(Module(new Decoder).io))
 
@@ -167,7 +200,7 @@ class DecodeUnit extends Module {
   val inCount = PopCount(io.in.map(_.valid))
   val robSucc = inCount + outBufferCount <= (BackendConfig.robSize - 1).U - io.robCount 
 
-  // DebugUtils.Print(cf"robSucc ${robSucc} inCount ${inCount} robCount ${io.robCount} outBufferCount ${outBufferCount}")
+  DebugUtils.Print(cf"robSucc ${robSucc} inCount ${inCount} robCount ${io.robCount} outBufferCount ${outBufferCount}")
   
   for (i <- 0 until FrontendConfig.decoderNum) {
     // 如果自己是气泡，不管后面准没准备好都可以ready

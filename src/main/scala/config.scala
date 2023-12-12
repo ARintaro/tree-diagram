@@ -15,8 +15,8 @@ object DebugConfig {
   // 1520984
 
   var printPart = true
-  var printBegin = 40000.U
-  var printEnd = 100000.U
+  var printBegin = 10000000.U
+  var printEnd = 20000000.U
 
   var printRenameTable = false
   var printRenameUnitIn = false
@@ -32,15 +32,15 @@ object DebugConfig {
   var printLreg = false
   var printFetch = false
   var printRedirect = false
-  var printFlush = true
+  var printFlush = false
   var printBusError = false
 
   val printRob = true
   val printRobNew = false
   val printPipeIns = false
-  val printStoreBuffer = true
+  val printStoreBuffer = false
 
-  val printException = true
+  val printException = false
 
   var printBusy = false
   val printWakeup = false
@@ -48,6 +48,7 @@ object DebugConfig {
   val printPageWalk = true
 
   val printTimer = false
+  val printDecode = false
 }
 
 object SramConfig {
@@ -112,6 +113,10 @@ object InsConfig {
     val IT_U_EXT_INT         = "b1000".U // 用户外部中断
     val IT_S_EXT_INT         = "b1001".U // 监管外部中断
     val IT_M_EXT_INT         = "b1011".U // 机器外部中断
+
+    def CheckCommit(code : UInt) : Bool = {
+      return code === EC_M_ENV_CALL || code === EC_S_ENV_CALL || code === EC_U_ENV_CALL
+    }
   }
 
 

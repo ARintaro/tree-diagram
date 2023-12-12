@@ -326,7 +326,9 @@ class RenameUnit extends Module
         when (robIO.news(i).writeRd) {
           base += cf"Rd ${renameTableIO.news(i).pregIdx}"
         }
+        base += cf"robIO.news.exception: ${robIO.news(i).exception}"
         DebugUtils.Print(base)
+        
       }
     }
   }

@@ -222,7 +222,6 @@ class Backend extends Module {
   memPipe.ctrlIO.clearTLB := excu.ctrlIO.clearTLB
 
   // timerInterrupt signal
-  dispatch.io.interruptInitializing := excu.io.interruptInitializing
   excu.io.robEmpty := rob.io.robEmpty
-  rob.io.interruptPending := excu.io.interruptPending
+  rob.io.interruptInitializing := excu.io.interruptInitializing
 }

@@ -11,6 +11,7 @@ class NewException extends Bundle {
     val valid = Bool()
     val precisePC = UInt(32.W)
     val csrTag = Bool()
+    val interrupt = Bool()
     val exceptionCode = UInt(InsConfig.EXCEPTION_WIDTH)
     val rawExceptionValue2 = UInt(32.W)
 }
@@ -42,8 +43,9 @@ class ExceptionUnit extends Module with InstructionConstants {
 
         val regRead = new RegisterReadRequest
         val regWrite = new RegisterWriteRequest
+
         val interruptInitializing = Output(Bool())
-        val interruptPending = Output(Bool())  // TODO: 这个信号最后可能不需要
+
         val redirect = Output(new RedirectRequest)
         val robEmpty = Input(Bool())
     })
@@ -203,6 +205,14 @@ class ExceptionUnit extends Module with InstructionConstants {
         (globalPrivilegeLevel === S_LEVEL) -> (mInterrupt | (sInterrupt & status.sie)),
         (globalPrivilegeLevel === U_LEVEL) -> (mInterrupt | sInterrupt)
     ))
+    
+    if (DebugConfig.printException){
+        DebugUtils.Print(cf"mInterrupt: ${mInterrupt}")
+        DebugUtils.Print(cf"sInterrupt: ${sInterrupt}")
+        DebugUtils.Print(cf"mie: ${status.mie}")
+        DebugUtils.Print(cf"mtip: ${ip.mtip}")
+        DebugUtils.Print(cf"mtie: ${ie.mtie}")
+    }
     val interruptCode = Wire(UInt(InsConfig.EXCEPTION_WIDTH))
     interruptCode := MuxCase(0.U, Seq(
         meiOccur -> IT_M_EXT_INT,
@@ -213,15 +223,7 @@ class ExceptionUnit extends Module with InstructionConstants {
         ssiOccur -> IT_S_SOFT_INT
     ))
 
-    val interruptPending = RegInit(false.B)
-    when (interruptPending === false.B){
-        when (io.interruptInitializing && io.robEmpty){
-            interruptPending := true.B
-        }
-    }.otherwise{
-        interruptPending := false.B
-    }
-    io.interruptPending := interruptPending
+    val interruptPending = io.exc.valid && io.exc.interrupt
     val generalizedExceptionCode = Mux(interruptPending, interruptCode, io.exc.exceptionCode)
 
     if (DebugConfig.printException) {
@@ -262,7 +264,7 @@ class ExceptionUnit extends Module with InstructionConstants {
         CSR_SEPC_ADDR -> sepc_reg,
         CSR_SCAUSE_ADDR -> scause.asUInt,
         CSR_STVAL_ADDR -> stval_reg,
-        CSR_SATP_ADDR -> satp.asUInt
+        CSR_SATP_ADDR -> satp.asUInt,
 
         CSR_TIME_ADDR -> mtime,
         CSR_TIMEH_ADDR -> mtimeh
@@ -307,10 +309,21 @@ class ExceptionUnit extends Module with InstructionConstants {
             mepc_reg,
             sepc_reg
         )
-        nextPrivilegeLevel := Mux(globalPrivilegeLevel === M_LEVEL,
+        when (io.reference.csrType === MRET) {
+          // MRET
+          nextPrivilegeLevel := Mux(globalPrivilegeLevel === M_LEVEL,
             status.mpp,
             status.spp
-        )
+          )
+        } .otherwise {
+          // SRET
+          nextPrivilegeLevel := Mux(globalPrivilegeLevel === M_LEVEL,
+            status.mpp,
+            status.spp
+          )
+        }
+
+        
     }.otherwise{
         nextPC := io.exc.precisePC + 4.U
         nextPrivilegeLevel := globalPrivilegeLevel
@@ -320,7 +333,7 @@ class ExceptionUnit extends Module with InstructionConstants {
         io.redirect.valid := true.B
         io.redirect.target := nextPC
     }
-    ctrlIO.flushPipeline := intoException || returnFromException || conductFencei || interruptPending // flush logic
+    ctrlIO.flushPipeline := io.exc.valid // flush logic
     when (io.exc.valid) {
         if (DebugConfig.printException) {
             DebugUtils.Print("[EXCU]Redirect")
