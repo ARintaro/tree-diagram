@@ -204,7 +204,15 @@ class InstructionCache(config : IcacheConfig) extends Module {
 
       val cachelineIndex = f2_io.paddr.bits(config.addrCachelineIndexEnd, config.addrCachelineIndexBegin)
 
-      assert(f2_io.paddr.bits === 0.U || PopCount(tagEqual) <= 1.U)
+      // assert(f2_io.paddr.bits === 0.U || PopCount(tagEqual) <= 1.U)
+
+      when (PopCount(tagEqual) > 1.U) {
+        DebugUtils.Print(cf"Icache Error, paddr 0x${f2_io.paddr.bits}%x")
+        DebugUtils.Print(cf"tag : ${tags}")
+        DebugUtils.Print(cf"valids : ${valids}")
+        DebugUtils.Print(cf"datas : ${datas}")
+        DebugUtils.Print(cf"Icache Error End")
+      }
 
       // 如果命中，选中命中的way
       // 如果没命中，随机挑选一个way

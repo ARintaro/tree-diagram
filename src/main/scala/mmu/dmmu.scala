@@ -97,6 +97,7 @@ class DataMemoryManagementUnit extends Module {
         io.ack := true.B
         io.exception.valid := true.B
         io.exception.code := Mux(dataMode, EC_STORE_PF, EC_LOAD_PF)
+        walkState := idle
       }
     }
     is (level3) {

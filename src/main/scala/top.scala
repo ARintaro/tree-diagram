@@ -93,4 +93,12 @@ class TreeDiagram extends Module {
   decoder.ctrlIO.flush := backend.ctrlIO.flushPipeline
 
   val debug = Module(new DebugModule)
+
+  val counter = Wire(UInt(32.W))
+  BoringUtils.addSink(counter, "debugCounter")
+
+  when ((counter & 0xfffff.U) === 0.U) {
+    printf(cf"counter reach 0x${counter}%x\n")
+  }
+
 }
