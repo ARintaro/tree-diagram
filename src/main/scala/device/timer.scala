@@ -34,6 +34,11 @@ class Timer extends Module {
     // core logic of time interrupt
     val mtimeExceed = WireInit(mtimecmp <= mtime)
     BoringUtils.addSource(mtimeExceed, "mtimeExceeded")
+
+    val mtimeL = WireInit(mtime(31, 0))
+    BoringUtils.addSource(mtimeL, "mtimeL")
+    val mtimeH = WireInit(mtime(63, 32))
+    BoringUtils.addSource(mtimeH, "mtimeH")
     
     // The bus might send load or store instructions
     // Aligned Addr might be in a 8-byte range for mtime and mtimecmp

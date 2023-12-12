@@ -90,6 +90,10 @@ class Decoder extends Module with InstructionConstants {
       fenceiPattern-> List(ALU_ADD , BRU_NONE, OP1_ZERO, OP2_ZERO, false.B, IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U                  , true.B , true.B , FENCEI ),
       sfencePattern-> List(ALU_ADD , BRU_NONE, OP1_ZERO, OP2_ZERO, false.B, IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U                  , true.B , true.B , SFENCE_VMA )
       
+      // 3 additional instructions
+      andnPattern  -> List(ALU_ANDN, BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U                  , true.B , false.B, CSRNONE),
+      xnorPattern  -> List(ALU_XNOR, BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U                  , true.B , false.B, CSRNONE),
+      minuPattern  -> List(ALU_MINU, BRU_NONE, OP1_RS1 , OP2_RS2 , true.B , IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U                  , true.B , false.B, CSRNONE)
       ))
   
 
