@@ -56,6 +56,7 @@ class DataMemoryManagementUnit extends Module {
         busIO.stb := true.B
         dataMode := io.dataMode
         walkState := level1
+        vaddr := io.vaddr
       }
     }
     is(level1) {

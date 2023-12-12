@@ -217,7 +217,7 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
       when(satp.mode === 0.U || priv === M_LEVEL) {
         f3_paddr_wire := f2_vaddr
         f3_paddr_valid_wire := true.B
-      }.elsewhen(tlb.io.result.hit && false.B) {
+      }.elsewhen(tlb.io.result.hit) {
         // 暂时关闭tlb
         val pte = tlb.io.result.pte
         f3_paddr_wire := Cat(pte.ppn1, pte.ppn0, f2_vaddr(11, 0))(31, 0)

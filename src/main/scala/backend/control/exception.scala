@@ -165,6 +165,8 @@ class ExceptionUnit extends Module with InstructionConstants {
     sscratchDebug := sscratch_reg
     val stvalDebug = WireInit(0.U(32.W))
     stvalDebug := stval_reg
+    val satpDebug = WireInit(0.U(32.W))
+    satpDebug := satp.asUInt
 
     // TODO: satp
 

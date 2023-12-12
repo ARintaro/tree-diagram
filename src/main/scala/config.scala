@@ -14,7 +14,7 @@ object DebugConfig {
   var debug = false
   // 1520984
 
-  var printPart = true
+  var printPart = false
   var printBegin = 10000000.U
   var printEnd = 20000000.U
 
@@ -115,7 +115,7 @@ object InsConfig {
     val IT_M_EXT_INT         = "b1011".U // 机器外部中断
 
     def CheckCommit(code : UInt) : Bool = {
-      return code === EC_M_ENV_CALL || code === EC_S_ENV_CALL || code === EC_U_ENV_CALL
+      return code === EC_M_ENV_CALL || code === EC_S_ENV_CALL || code === EC_U_ENV_CALL || code === EC_BREAKPOINT
     }
   }
 
