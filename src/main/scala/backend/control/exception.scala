@@ -116,6 +116,11 @@ class ExceptionUnit extends Module with InstructionConstants {
 
     val satp = RegInit(0.U.asTypeOf(new csr_satp_t)) // satp
 
+    val mtime = WireInit(0.U(32.W))
+    BoringUtils.addSink(mtime, "mtimeL")
+    val mtimeh = WireInit(0.U(32.W))
+    BoringUtils.addSink(mtimeh, "mtimeH")
+
     // BoringUtils.addSource(status.sum, "statusSum")
     BoringUtils.addSource(satp, "satp")
 
@@ -258,6 +263,9 @@ class ExceptionUnit extends Module with InstructionConstants {
         CSR_SCAUSE_ADDR -> scause.asUInt,
         CSR_STVAL_ADDR -> stval_reg,
         CSR_SATP_ADDR -> satp.asUInt
+
+        CSR_TIME_ADDR -> mtime,
+        CSR_TIMEH_ADDR -> mtimeh
     ))
     when(conductCsrInst && canReadCsr && io.reference.readCsrEn){ 
         io.regWrite.id := io.reference.prd
