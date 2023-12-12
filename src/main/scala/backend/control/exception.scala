@@ -447,7 +447,7 @@ class ExceptionUnit extends Module with InstructionConstants {
                 status.sie := csrWriteData(1)
                 status.spie := csrWriteData(5)
                 status.spp := csrWriteData(8)
-                status.mxr := csrWriteData(19)
+                status.sum := csrWriteData(18)
             }
             is(CSR_STVEC_ADDR){
                 when(csrWriteData(1, 0) === 0.U){

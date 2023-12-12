@@ -60,17 +60,17 @@ class csr_status_t extends Bundle {
   val mpie = Bool()
   val ube = Bool()
   val spie = Bool()
-  val _p_1 = Bool()
+  val upie = Bool()
   val mie = Bool()
   val _p_2 = Bool()
   val sie = Bool()
-  val _p_3 = Bool()
+  val uie = Bool()
 
   def reg(privilege: UInt): UInt = {
     val register = Wire(UInt(32.W))
     register := MuxLookup(privilege, 0.U)(Seq(
       M_LEVEL -> Cat(sd, 0.U(8.W), tsr, tw, tvm, mxr, sum, mprv, xs, fs, mpp, vs, spp, mpie, ube, spie, 0.U, mie, 0.U, sie, 0.U),
-      S_LEVEL -> Cat(sd, 0.U(11.W)             , mxr, sum, 0.U , xs, fs, 0.U, vs, spp, 0.U , ube, spie, 0.U(3.W)     , sie, 0.U)
+      S_LEVEL -> Cat(sd, 0.U(11.W)             , mxr, sum, 0.U , xs, fs, 0.U(2.W), vs, spp, 0.U , ube, spie, 0.U(3.W)     , sie, 0.U)
     ))
     register
   }
