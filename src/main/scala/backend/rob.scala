@@ -28,7 +28,7 @@ class RobEntry extends Bundle with InstructionConstants {
   val storeType = UInt(STORE_TYPE_WIDTH)
 
   val csrTag = Bool()
-
+  val uncertern = Bool()
 }
 
 class NewRobRequest extends Bundle with InstructionConstants {
@@ -42,6 +42,7 @@ class NewRobRequest extends Bundle with InstructionConstants {
   val predictJumpTarget = Input(UInt(BusConfig.ADDR_WIDTH))
   val exception = Input(Bool())
   val exceptionCode = Input(UInt(InsConfig.EXCEPTION_WIDTH))
+  val uncertern = Input(Bool())
 
   val idx = Output(UInt(BackendConfig.robIdxWidth))
 }
@@ -145,6 +146,8 @@ class ReorderBuffer extends Module with InstructionConstants {
       entry.exceptionCode := newIO.news(i).exceptionCode
       entry.storeType := DontCare
       entry.csrTag := false.B
+      entry.uncertern := newIO.news(i).uncertern
+      
     
       entries(idx) := entry
     }
@@ -319,7 +322,7 @@ class ReorderBuffer extends Module with InstructionConstants {
 
   io.uncertern := (commitValidsFinal.zip(commitEntry).map{
     case (valid, entry) => {
-      valid && (entry.storeType === STORE_MMIO || entry.storeType === LOAD_MMIO) 
+      valid && (entry.storeType === STORE_MMIO || entry.storeType === LOAD_MMIO || entry.uncertern) 
     }
   }.reduce(_ || _)) || afterInterrupt
 

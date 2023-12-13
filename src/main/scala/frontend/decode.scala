@@ -104,6 +104,8 @@ class Decoder extends Module with InstructionConstants {
   io.out.writeRd := signals(4) & (io.in.inst(11, 7) =/= 0.U) & !io.out.exception
   io.out.immType := signals(5)
   io.out.exception := signals(6) | io.in.exception
+  
+
   if (DebugConfig.printDecode) {
     // when(io.out.exception) {
     //   DebugUtils.Print(cf"shi,laoye ${io.in.inst}")
@@ -151,6 +153,8 @@ class Decoder extends Module with InstructionConstants {
   )
   io.out.writeCsrEn := csrSignals(0)
   io.out.readCsrEn := csrSignals(1)
+
+  io.out.uncertern := (io.out.csrType === CSRRS && io.out.inst(31, 20) === CsrConstants.CSR_TIME_ADDR) || (io.out.csrType === CSRRS && io.out.inst(31, 20) === CsrConstants.CSR_TIMEH_ADDR)
   
   // TODO : Predict Jump
 

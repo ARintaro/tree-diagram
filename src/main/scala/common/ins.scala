@@ -207,6 +207,8 @@ class DecodedInstruction extends Bundle with InstructionConstants {
   // 在提交时刷新流水线
   val flush = Bool()
 
+  val uncertern = Bool()
+
   val extType = Bool()
   // csr related instructions
   val csrTag = Bool()

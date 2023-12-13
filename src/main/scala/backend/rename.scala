@@ -304,6 +304,7 @@ class RenameUnit extends Module
     robIO.news(i).exceptionCode := io.in(i).exceptionCode
     robIO.news(i).predictJump := io.in(i).predictJump
     robIO.news(i).predictJumpTarget := io.in(i).predictTarget
+    robIO.news(i).uncertern := io.in(i).uncertern
 
     if (DebugConfig.printRobNew) {
       when (robIO.news(i).valid) {
