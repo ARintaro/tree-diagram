@@ -90,7 +90,7 @@ class TreeDiagram extends Module {
   decoder.io.out <> backend.io.in
   decoder.io.nextDone := backend.io.renameDone
 
-  val debug = Module(new DebugModule)
+  val debug = Module(new DebugMod)
 
   val counter = Wire(UInt(32.W))
   BoringUtils.addSink(counter, "debugCounter")

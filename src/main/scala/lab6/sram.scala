@@ -11,7 +11,7 @@ class SramController(name : String) extends Module {
 
   val externSram = Module(new ExternalSram(name))
 
-  val idle :: reading :: writting1 :: writting2 :: Nil = Enum(4)
+  val idle :: reading :: writting1 :: writting2 :: done :: Nil = Enum(5)
 
   val curState = RegInit(idle)
   val resultReg = RegInit(0.U(GlobalConst.DATA_WIDTH))
@@ -52,7 +52,7 @@ class SramController(name : String) extends Module {
       busIO.dataRead := externSram.io.dataRead
 
       busIO.ack := true.B
-      curState := idle
+      curState := done
     }
     is (writting1) {
       externSram.io.writeDisable := false.B
@@ -63,8 +63,11 @@ class SramController(name : String) extends Module {
     is (writting2) {
       externSram.io.dataWrite := busIO.dataWrite
 
-      curState := idle
+      curState := done
       busIO.ack := true.B
+    }
+    is(done) {
+      curState := idle
     }
   } 
 }

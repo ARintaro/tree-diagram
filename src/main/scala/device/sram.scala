@@ -29,7 +29,7 @@ class Sram(name : String) extends Module {
 
   val externSram = Module(new ExternalSram(name))
 
-  val idle :: reading :: writting :: Nil = Enum(3)
+  val idle :: reading :: writting :: writing2 :: Nil = Enum(3)
   var state = RegInit(idle)
 
   externSram.io.dataWrite := 0.U
