@@ -9,16 +9,15 @@ class Backend extends Module {
     val in = Vec(FrontendConfig.decoderNum, Input(new DecodedInstruction))
 
     val renameDone = Output(Bool())
-    val robRedirect = Output(new RedirectRequest)
-    val excRedirect = Output(new RedirectRequest)
-
+  
     val devBus = Vec(2, BusMasterInterface())
     val memBus = BusMasterInterface()
     val robCount = Output(UInt(BackendConfig.robIdxWidth))
   })
 
   val ctrlIO = IO(new Bundle {
-    val flushPipeline = Output(Bool())
+    val redirect = Output(new RedirectRequest)
+    val flush = Output(Bool())
     val clearICache = Output(Bool())
     val clearTLB = Output(Bool())
   })
@@ -127,20 +126,17 @@ class Backend extends Module {
   io.robCount := rob.io.count
   
 
-  if (DebugConfig.printFlush) {
-    when(rob.ctrlIO.flushPipeline) {
-      DebugUtils.Print("Flush !!")
-    }
-  }
+  // if (DebugConfig.printFlush) {
+  //   when(rob.ctrlIO.flushPipeline) {
+  //     DebugUtils.Print("Flush !!")
+  //   }
+  // }
 
   if (DebugConfig.printRedirect) {
-    when (io.robRedirect.valid) {
-      DebugUtils.Print(cf"ROB Redirect : 0x${io.robRedirect.target}%x")
+    when (ctrlIO.redirect.valid) {
+      DebugUtils.Print(cf"Backend Redirect : 0x${ctrlIO.redirect.target}%x")
     }
 
-    when (io.excRedirect.valid) {
-      DebugUtils.Print(cf"EXEU Redirect : 0x${io.robRedirect.target}%x")
-    }
   }
 
 
@@ -155,21 +151,37 @@ class Backend extends Module {
   excu.io.reference <> dispatch.io.csr
   excu.io.rawExceptionValue1 := 0.U // TODO: 接到前端
   excu.io.regRead <> registers.io.reads(BackendConfig.intPipelineNum + 1)(0)
-  registers.io.reads(BackendConfig.intPipelineNum + 1)(1).id := 0.U
+  registers.io.reads(BackendConfig.intPipelineNum + 1)(1).id := DontCare
   excu.io.regWrite <> registers.io.writes(BackendConfig.intPipelineNum + 1)
   
 
-  // global flush logic
-  val doFlush = RegNext(rob.ctrlIO.flushPipeline) || excu.ctrlIO.flushPipeline
-  val flushDelay = RegNext(doFlush)
+  /*============== global flush logic begin ==============*/
 
-  ctrlIO.flushPipeline := doFlush
+  // csr指令/异常指令的flush逻辑：
+  // 第一周期，rob提交newException；robflush
+  // 第二周期，excu读csr；robflush
+  // 第三周期，excu写csr；robflush；前端flush，excu提交重定向
+  // 第四周期，robflush，后端flush
 
-  io.robRedirect := RegNext(rob.io.redirect)
-  io.excRedirect := excu.io.redirect
+  // 分支预测失败的flush逻辑：
+  // 第一周期，rob.ctrlIO.flushPipelineBranch拉高；robflush
+  // 第二周期，robflush；前端flush，前端重定向
+  // 第三周期，robflush；后端flush
 
-  renameTable.ctrlIO.recover := flushDelay
-  renameUnit.ctrlIO.flush := flushDelay
+  val delayRobRedirect = RegNext(rob.ctrlIO.redirect)
+  assert(!rob.ctrlIO.redirect.valid || !excu.ctrlIO.redirect.valid || !delayRobRedirect.valid)
+
+  //              1                           2                          2                     2
+  val flush = delayRobRedirect.valid || excu.ctrlIO.redirect.valid || ctrlIO.clearICache || ctrlIO.clearTLB
+  //                                    2                     2                  1
+  ctrlIO.redirect := Mux(excu.ctrlIO.redirect.valid, excu.ctrlIO.redirect, delayRobRedirect)
+  //  2/3
+  val flushDelay = RegNext(flush)
+
+  renameTable.ctrlIO.recover := flush
+  renameUnit.ctrlIO.flush := flush
+  ctrlIO.flush := flush
+
   memQueue.ctrlIO.flush := flushDelay
   storeBuffer.ctrlIO.flush := flushDelay
   dispatch.ctrlIO.flush := flushDelay
@@ -179,42 +191,18 @@ class Backend extends Module {
   }
   memPipe.ctrlIO.flush := flushDelay
 
-  // 1
-  // rob提交，robflush，异常提交，
 
-  // 2
-  // rob接着flush，exce提交重定向，前端doFlush
-
-  // 3
-  // rob接着flush，后端flushDelay
-
-    // 1
-  // rob提交，robflush， 异常提交->写寄存器
-
-  // 2
-  // rob接着flush，前端doFlush，从寄存器exce提交重定向 -> 访问bram，rob重定向
-
-  // 3
-  // rob接着flush，后端flushDelay
-
-
-  
-
-  // debug: print flush
-  if (DebugConfig.printFlush) {
-    when(doFlush) {
-      DebugUtils.Print("Backend Flush !!")
+  if(DebugConfig.printFlush) {
+    when (flushDelay) {
+      DebugUtils.Print("Backend Flushing")
     }
-    when(excu.ctrlIO.flushPipeline) {
-      DebugUtils.Print("Backend Flush by Exception !!")
+    when (flush) {
+      DebugUtils.Print("Frontend & Rename Flushing")
     }
-    when(rob.ctrlIO.flushPipeline) {
-      DebugUtils.Print("Backend Flush by ROB !!")
-    }
-    when(flushDelay) {
-     DebugUtils.Print("Backend Flush Delay !!")
-   }
   }
+
+
+  /*============== global flush logic end ==============*/
 
   // FENCEI signal 
   ctrlIO.clearICache := excu.ctrlIO.clearICache
@@ -222,6 +210,5 @@ class Backend extends Module {
   memPipe.ctrlIO.clearTLB := excu.ctrlIO.clearTLB
 
   // timerInterrupt signal
-  excu.io.robEmpty := rob.io.robEmpty
   rob.io.interruptInitializing := excu.io.interruptInitializing
 }

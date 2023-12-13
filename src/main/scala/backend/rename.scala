@@ -68,7 +68,6 @@ class RenameTable extends Module {
   // arch preg free list
   val afree = RegInit(UIntUtils.GetAllOneWithoutZero(BackendConfig.physicalRegNum))
 
-  val recovering = RegInit(false.B)
 
   if (DebugConfig.printBusy) {
     DebugUtils.Print(cf"Busy ${busy.asTypeOf(Vec(BackendConfig.physicalRegNum, Bool()))}")
@@ -93,170 +92,156 @@ class RenameTable extends Module {
     }
   }
 
-  when(recovering) {
+  
+  // 处理news和finds
+
+  // 分配出去的物理寄存器
+  val allocs = WireInit(0.U(BackendConfig.physicalRegNum.W))
+  
+  {
+    // 要么全部失败，要么全部成功
+    // 是否成功必须尽快计算，不应影响前序流水段的时序
+    
+    // 比较sfree中1的个数和news中valid的个数
+    
+    // val validCount = PopCount(io.renames.news.map(_.valid))
+    // val freeCount = PopCount(sfree)
+    // 由于 逻辑寄存器 + ROB项数 <= 物理寄存器数，重命名一定会成功
+    require(32 + BackendConfig.robSize <= BackendConfig.physicalRegNum)
+    val succ = true.B
+
+    // 当前重命名表
+    var curRT = Wire(Vec(32, new RenameTableEntry))
+    // 当前freeList
+    var curFree = Wire(UInt(BackendConfig.physicalRegNum.W))
+
+    curRT := srt
+    curFree := sfree
+
+    // 按指令顺序更新
+    for (i <- 0 until FrontendConfig.decoderNum) {
+      // 先处理Find，避免读写逻辑寄存器相同的情况
+      val finds = io.renames.finds(i)
+      for (j <- 0 until 2) {
+        val entry = curRT(finds(j).lregIdx)
+        finds(j).preg := Mux(entry.valid, entry.pregIdx, 0.U)
+      }
+
+      val req = io.renames.news(i)
+      // 更新目前的失败状态
+      // 更新curRT与curFree
+
+      val select = Mux(req.valid, PriorityEncoderOH(curFree), 0.U)
+      val selectIdx = OHToUInt(select)
+
+      val newRT = Wire(Vec(32, new RenameTableEntry))
+      newRT := curRT
+      when(req.valid) {
+        newRT(req.lregIdx).valid := true.B
+        newRT(req.lregIdx).pregIdx := selectIdx
+
+        if (DebugConfig.printRenameAlloc) {
+          DebugUtils.Print(cf"Rename alloc: lregIdx: ${req.lregIdx} -> pregIdx: ${selectIdx}")
+        }
+
+      }
+
+      req.pregIdx := selectIdx
+
+      // 注意这里是 "等于号"
+      curFree = curFree & ~select
+      curRT = newRT
+    }
+
+
+    io.renames.succ := succ
+    // 最终结果写回寄存器
+    when(succ) {
+      srt := curRT
+      allocs := sfree & ~curFree
+    }
+  }
+
+  // 处理commit
+
+  // 回收的物理寄存器
+  val recycles = WireInit(0.U(BackendConfig.physicalRegNum.W))
+
+  {
+    // 当前重命名表
+    var curRT = Wire(Vec(32, new RenameTableEntry))
+    // 当前freeList
+    var curSFree = Wire(UInt(BackendConfig.physicalRegNum.W))
+    var curAFree = Wire(UInt(BackendConfig.physicalRegNum.W))
+
+    curRT := art
+    curSFree := sfree
+    curAFree := afree
+
+    for (i <- 0 until BackendConfig.maxCommitsNum) {
+      val req = io.commits(i)
+
+      val lastEntry = curRT(req.lregIdx)
+      val lastPregOH =
+        Mux(lastEntry.valid && req.valid, UIntToOH(lastEntry.pregIdx), 0.U)
+      val curPregOH = Mux(req.valid, UIntToOH(req.pregIdx), 0.U)
+
+      // 把之前的物理寄存器重新加入SFree
+      curSFree = curSFree | lastPregOH
+      // 把之前的物理寄存器加入AFree，把现在的物理寄存器从AFree里删掉
+      curAFree = (curAFree | lastPregOH) & ~curPregOH
+
+      // 写入新的映射关系
+      val newRT = Wire(Vec(32, new RenameTableEntry))
+      newRT := curRT
+      when(req.valid) {
+        newRT(req.lregIdx).valid := true.B
+        newRT(req.lregIdx).pregIdx := req.pregIdx
+
+        if (DebugConfig.printRenameFree) {
+          when (lastEntry.valid) {
+            DebugUtils.Print(cf"Rename commit: lregIdx: ${req.lregIdx} -> pregIdx: ${req.pregIdx}, freePreg: ${lastEntry.pregIdx}")
+          }.otherwise {
+            DebugUtils.Print(cf"Rename commit: lregIdx: ${req.lregIdx} -> pregIdx: ${req.pregIdx}")
+          }
+        }
+      }
+
+      curRT = newRT
+    }
+
+    // 最终结果写回
+    art := curRT
+    recycles := ~sfree & curSFree
+    afree := curAFree
+  }
+
+  sfree := sfree & ~allocs | recycles
+
+  // 根据和alloc广播更新Busy
+  
+
+  val wakeupHot = BackendUtils.GetWakeupHot()
+  
+  busy := busy & ~wakeupHot | allocs
+  BoringUtils.addSource(busy, "busy")
+
+  assert((wakeupHot & allocs) === 0.U)
+  assert((busy & allocs) === 0.U)
+  assert((allocs & recycles) === 0.U)
+  assert(allocs(0) === 0.U)
+  assert(recycles(0) === 0.U)
+
+
+  when(ctrlIO.recover) {
     // 从art恢复出freeList与srt
     srt := art
     sfree := afree
-    io.renames.news.foreach(x => {
-      x.pregIdx := DontCare
-    })
-    io.renames.finds.foreach(x =>
-      x.foreach(y => {
-        y.preg := DontCare
-      })
-    )
-    io.renames.succ := false.B
     busy := 0.U
-    recovering := false.B
-    
-  }.otherwise {
-    // 处理news和finds
 
-
-    // 分配出去的物理寄存器
-    val allocs = WireInit(0.U(BackendConfig.physicalRegNum.W))
-    
-    {
-      // 要么全部失败，要么全部成功
-      // 是否成功必须尽快计算，不应影响前序流水段的时序
-      
-      // 比较sfree中1的个数和news中valid的个数
-      
-      // val validCount = PopCount(io.renames.news.map(_.valid))
-      // val freeCount = PopCount(sfree)
-      // 由于 逻辑寄存器 + ROB项数 <= 物理寄存器数，重命名一定会成功
-      require(32 + BackendConfig.robSize <= BackendConfig.physicalRegNum)
-      val succ = true.B
-
-      // 当前重命名表
-      var curRT = Wire(Vec(32, new RenameTableEntry))
-      // 当前freeList
-      var curFree = Wire(UInt(BackendConfig.physicalRegNum.W))
-
-      curRT := srt
-      curFree := sfree
-
-      // 按指令顺序更新
-      for (i <- 0 until FrontendConfig.decoderNum) {
-        // 先处理Find，避免读写逻辑寄存器相同的情况
-        val finds = io.renames.finds(i)
-        for (j <- 0 until 2) {
-          val entry = curRT(finds(j).lregIdx)
-          finds(j).preg := Mux(entry.valid, entry.pregIdx, 0.U)
-        }
-
-        val req = io.renames.news(i)
-        // 更新目前的失败状态
-        // 更新curRT与curFree
-
-        val select = Mux(req.valid, PriorityEncoderOH(curFree), 0.U)
-        val selectIdx = OHToUInt(select)
-
-        val newRT = Wire(Vec(32, new RenameTableEntry))
-        newRT := curRT
-        when(req.valid) {
-          newRT(req.lregIdx).valid := true.B
-          newRT(req.lregIdx).pregIdx := selectIdx
-
-          if (DebugConfig.printRenameAlloc) {
-            DebugUtils.Print(cf"Rename alloc: lregIdx: ${req.lregIdx} -> pregIdx: ${selectIdx}")
-          }
-
-        }
-
-        req.pregIdx := selectIdx
-
-        // 注意这里是 "等于号"
-        curFree = curFree & ~select
-        curRT = newRT
-      }
-
-
-      io.renames.succ := succ
-      // 最终结果写回寄存器
-      when(succ) {
-        srt := curRT
-        allocs := sfree & ~curFree
-      }
-    }
-
-    // 处理commit
-
-    // 回收的物理寄存器
-    val recycles = WireInit(0.U(BackendConfig.physicalRegNum.W))
-
-    {
-      // 当前重命名表
-      var curRT = Wire(Vec(32, new RenameTableEntry))
-      // 当前freeList
-      var curSFree = Wire(UInt(BackendConfig.physicalRegNum.W))
-      var curAFree = Wire(UInt(BackendConfig.physicalRegNum.W))
-
-      curRT := art
-      curSFree := sfree
-      curAFree := afree
-
-      for (i <- 0 until BackendConfig.maxCommitsNum) {
-        val req = io.commits(i)
-
-        val lastEntry = curRT(req.lregIdx)
-        val lastPregOH =
-          Mux(lastEntry.valid && req.valid, UIntToOH(lastEntry.pregIdx), 0.U)
-        val curPregOH = Mux(req.valid, UIntToOH(req.pregIdx), 0.U)
-
-        // 把之前的物理寄存器重新加入SFree
-        curSFree = curSFree | lastPregOH
-        // 把之前的物理寄存器加入AFree，把现在的物理寄存器从AFree里删掉
-        curAFree = (curAFree | lastPregOH) & ~curPregOH
-
-        // 写入新的映射关系
-        val newRT = Wire(Vec(32, new RenameTableEntry))
-        newRT := curRT
-        when(req.valid) {
-          newRT(req.lregIdx).valid := true.B
-          newRT(req.lregIdx).pregIdx := req.pregIdx
-
-          if (DebugConfig.printRenameFree) {
-            when (lastEntry.valid) {
-              DebugUtils.Print(cf"Rename commit: lregIdx: ${req.lregIdx} -> pregIdx: ${req.pregIdx}, freePreg: ${lastEntry.pregIdx}")
-            }.otherwise {
-              DebugUtils.Print(cf"Rename commit: lregIdx: ${req.lregIdx} -> pregIdx: ${req.pregIdx}")
-            }
-          }
-        }
-
-        curRT = newRT
-      }
-
-      // 最终结果写回
-      art := curRT
-      recycles := ~sfree & curSFree
-      afree := curAFree
-    }
-
-    sfree := sfree & ~allocs | recycles
-
-    // 根据和alloc广播更新Busy
-    
-
-    val wakeupHot = BackendUtils.GetWakeupHot()
-    
-    busy := busy & ~wakeupHot | allocs
-    BoringUtils.addSource(busy, "busy")
-
-    assert((wakeupHot & allocs) === 0.U)
-    assert((busy & allocs) === 0.U)
-    assert((allocs & recycles) === 0.U)
-    assert(allocs(0) === 0.U)
-    assert(recycles(0) === 0.U)
-
-    // 回滚信号
-    // 注意flush拉高的这一周期的commit仍然需要有效
-    // 所以使用状态机下一周期开始恢复
-    recovering := ctrlIO.recover
-
-
+    assert(!io.commits.map(_.valid).reduce(_ || _))
   }
+  
 
 }
 

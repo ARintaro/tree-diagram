@@ -72,11 +72,11 @@ class InstructionMemoryManagementUnitNew extends Module {
     when(tlb.io.result.hit) {
       // tlb hit，说明一定valid
       val entry = tlb.io.result.pte
-      f2_io.paddr.valid := true.B
       f2_io.paddr.bits := Cat(entry.ppn1, entry.ppn0, f2_vaddr.offset)(31, 0)
 
       // TODO : 判断权限
       f2_io.exception := CheckFetchAddress(f2_io.paddr.bits, entry, privilege)
+      f2_io.paddr.valid := !f2_io.exception.valid
 
     }.otherwise {
       // tlb 没有hit，判断walkResult
@@ -127,6 +127,7 @@ class InstructionMemoryManagementUnitNew extends Module {
     }
     is(level1) {
       busIO.addr := Cat(satp.ppn, walkResultTag.vpn1, 0.U(2.W))(31, 0)
+      assert(AddressException.CheckValidRamAddress(busIO.addr))
       busIO.stb := true.B
       when (busIO.ack) {
         walkState := level2
@@ -158,6 +159,7 @@ class InstructionMemoryManagementUnitNew extends Module {
     is(level3) {
       busIO.addr := Cat(walkResult.ppn1, walkResult.ppn0, walkResultTag.vpn0, 0.U(2.W))(31, 0)
       busIO.stb := true.B
+      assert(AddressException.CheckValidRamAddress(busIO.addr))
       when (busIO.ack) {
         walkState := over
       }

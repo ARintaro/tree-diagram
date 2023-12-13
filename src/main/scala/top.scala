@@ -81,16 +81,14 @@ class TreeDiagram extends Module {
 
   ifu.ctrlIO.clearIcache := backend.ctrlIO.clearICache
   ifu.ctrlIO.clearTLB := backend.ctrlIO.clearTLB
-  ifu.ctrlIO.flush := backend.ctrlIO.flushPipeline
-  decoder.ctrlIO.flush := backend.ctrlIO.flushPipeline
+  decoder.ctrlIO.flush := backend.ctrlIO.flush
   decoder.io.robCount := backend.io.robCount
 
-  ifu.io.redirect(0) := backend.io.robRedirect
-  ifu.io.redirect(1) := backend.io.excRedirect
+  ifu.ctrlIO.redirect := backend.ctrlIO.redirect
+  ifu.ctrlIO.flush := backend.ctrlIO.flush
   ifu.io.fetch <> decoder.io.in
   decoder.io.out <> backend.io.in
   decoder.io.nextDone := backend.io.renameDone
-  decoder.ctrlIO.flush := backend.ctrlIO.flushPipeline
 
   val debug = Module(new DebugModule)
 

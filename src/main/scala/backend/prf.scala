@@ -21,8 +21,7 @@ class PhysicalRegisterFile(readPortNum: Int, writePortNum: Int) extends Module {
   })
 
   val regs = Mem(BackendConfig.physicalRegNum, UInt(32.W))
-  // val regs = RegInit(VecInit(Seq.fill(BackendConfig.physicalRegNum)(0.U(32.W))))
-
+  
   if(DebugConfig.printPreg) {
     var regInfo = cf"pregs: "
     for(i <- 0 until 16) {

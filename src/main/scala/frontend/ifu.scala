@@ -12,26 +12,23 @@ class InstructionFetchUnit extends Module {
   val io = IO(new Bundle {
     val fetch = Vec(FrontendConfig.decoderNum, Decoupled(new RawInstruction()))
 
-    val redirect = Vec(2, Input(new RedirectRequest))
+    
   })
 
   val sramBusIO = IO(Vec(2, BusMasterInterface()))
   val ctrlIO = IO(new Bundle {
-    val flush = Input(Bool())
-
+    val redirect = Input(new RedirectRequest)
     val clearTLB = Input(Bool())
-
+    val flush = Input(Bool())
     val clearIcache = Input(Bool())
   })
 
-  val pc = Module(new ProgramCounter(3, 0x80000000L))
+  val pc = Module(new ProgramCounter(2, 0x80000000L))
 
-  // ROB发来的重定向请求
-  pc.io.reqs(1) := io.redirect(0)
-  // exceptionUnit发来的重定向请求
-  pc.io.reqs(2) := io.redirect(1)
+  assert(!((ctrlIO.redirect.valid || ctrlIO.clearIcache || ctrlIO.clearTLB) && (!ctrlIO.flush)))
 
-  assert(!io.redirect(0).valid || ctrlIO.flush, "Redirect without flush")
+  pc.io.reqs(1) := ctrlIO.redirect
+
 
   val immu = Module(new InstructionMemoryManagementUnitNew)
   val icache = Module(new InstructionCache(CacheConfig.icache))
@@ -47,15 +44,6 @@ class InstructionFetchUnit extends Module {
       "FetchQueue"
     )
   )
-
-  if (DebugConfig.printFetch) {
-    for(i <- 0 until CacheConfig.icache.cacheLineSize) {
-      when(fetchQueue.io.enq(i).ready && fetchQueue.io.enq(i).valid) {
-        val bits = fetchQueue.io.enq(i).bits
-        DebugUtils.Print(cf"fetched inst 0x${bits.inst}%x vaddr 0x${bits.vaddr}%x")
-      }
-    }
-  }
 
   fetchQueue.ctrlIO.flush := ctrlIO.flush
   immu.ctrlIO.clearTLB := ctrlIO.clearTLB
@@ -145,10 +133,24 @@ class InstructionFetchUnit extends Module {
     fetchQueue.io.enq(0).bits.exceptionCode := immu.f2_io.exception.code
   }
 
-  
 
   fetchQueue.io.deq.zip(io.fetch).foreach {
     case (deq, fetch) => fetch <> deq
+  }
+
+  if (DebugConfig.printFetch) {
+    for(i <- 0 until CacheConfig.icache.cacheLineSize) {
+      when(fetchQueue.io.enq(i).ready && fetchQueue.io.enq(i).valid) {
+        val bits = fetchQueue.io.enq(i).bits
+        DebugUtils.Print(cf"fetched inst 0x${bits.inst}%x vaddr 0x${bits.vaddr}%x")
+      }
+    }
+  }
+
+  if (DebugConfig.printFlush) {
+    when (ctrlIO.flush) {
+      DebugUtils.Print("Frontend Flushing")
+    }
   }
 }
 

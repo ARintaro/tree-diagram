@@ -271,6 +271,8 @@ class InstructionCache(config : IcacheConfig) extends Module {
       sramIO.addr := sramAddrReg
       sramIO.dataBytesSelect := "b1111".U
       sramIO.dataMode := false.B
+      assert(AddressException.CheckValidRamAddress(sramIO.addr))
+      
 
       when (sramIO.ack) {
         busy := false.B
@@ -299,6 +301,8 @@ class InstructionCache(config : IcacheConfig) extends Module {
           writeTagAddrReg := writeTagAddr
           writeTagDataReg := writeTagData
           writeDataAddrReg := writeDataAddr
+
+          assert(AddressException.CheckValidRamAddress(sramIO.addr))
 
           busy := true.B
 

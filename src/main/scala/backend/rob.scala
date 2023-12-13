@@ -81,7 +81,7 @@ class ReorderBuffer extends Module with InstructionConstants {
     Vec(BackendConfig.intPipelineNum, Flipped(new RobReadPcRequest))
   )
   val io = IO(new Bundle {
-    val redirect = Output(new RedirectRequest)
+    
     val commitsStoreBuffer = Vec(BackendConfig.maxCommitsNum, new CommitStoreRequest)
 
     val head = Output(UInt(BackendConfig.robIdxWidth))
@@ -90,13 +90,11 @@ class ReorderBuffer extends Module with InstructionConstants {
     val uncertern = Output(Bool())
     val count = Output(UInt(BackendConfig.robIdxWidth))
 
-    val robEmpty = Output(Bool())
-
     val interruptInitializing = Input(Bool())
   })
   
   val ctrlIO = IO(new Bundle {
-    val flushPipeline = Output(Bool())
+    val redirect = Output(new RedirectRequest)
   })
 
   io.newException.valid := false.B
@@ -120,12 +118,10 @@ class ReorderBuffer extends Module with InstructionConstants {
 
   io.count := tail - head
 
-  // 默认不发起重定向和冲刷请求
+  // 默认不发起重定向
+  ctrlIO.redirect.valid := false.B
 
-  io.redirect.valid := false.B
-  
-
-  ctrlIO.flushPipeline := false.B
+ 
 
   val newsCount = PopCount(newIO.news.map(_.valid))
 
@@ -147,7 +143,6 @@ class ReorderBuffer extends Module with InstructionConstants {
       entry.jumpTarget := newIO.news(i).predictJumpTarget
       entry.exception := newIO.news(i).exception
       entry.exceptionCode := newIO.news(i).exceptionCode
-      // entry.storeBufferIdx := DontCare
       entry.storeType := DontCare
       entry.csrTag := false.B
     
@@ -238,16 +233,14 @@ class ReorderBuffer extends Module with InstructionConstants {
   val firstInvalidIdx = PriorityEncoder(commitValidsThree.map(!_))
   val invalidEntry = commitEntry(firstInvalidIdx)
   
-  io.redirect.target := 0x10000001L.U
-  io.newException.precisePC := entries(head - 1.U).jumpTarget
+  ctrlIO.redirect.target := 0x10000001L.U
+
   val afterInterrupt = RegInit(false.B)
+  val recoverWire = WireInit(0.U(3.W))
   
   /* ================ 重定向逻辑 ================ */
   // 只要有一个指令的commitValidsFinal为False，就需要重定向并冲刷流水线
   when(!allValid && commitValidsOne(firstInvalidIdx)) {
-    io.redirect.valid := true.B
-    ctrlIO.flushPipeline := true.B
-    
     // 下面分别讨论三种情况，注意优先级：csr > exc > predict mistake
     when(!commitCsrValid(firstInvalidIdx)) {
       // 提交执行csr指令
@@ -258,8 +251,8 @@ class ReorderBuffer extends Module with InstructionConstants {
       io.newException.rawExceptionValue2 := 0.U
       io.newException.csrTag := invalidEntry.csrTag
       commitValidsFinal(firstInvalidIdx) := true.B
-      // io.redirect.valid := false.B
-      // ctrlIO.flushPipeline := true.B
+      recoverWire := "b111".U
+
     }.elsewhen(!commitExcValid(firstInvalidIdx)) {
       io.newException.valid := true.B
       io.newException.exceptionCode := invalidEntry.exceptionCode
@@ -268,7 +261,6 @@ class ReorderBuffer extends Module with InstructionConstants {
       io.newException.interrupt := !invalidEntry.exception
 
       afterInterrupt := io.newException.interrupt
-
       // 使用jumpTarget充当mtval
       io.newException.rawExceptionValue2 := invalidEntry.jumpTarget
       if (DebugConfig.printException) {
@@ -276,21 +268,26 @@ class ReorderBuffer extends Module with InstructionConstants {
         DebugUtils.Print(cf"Commit Exception ${invalidEntry.exceptionCode}")
         DebugUtils.Print("=== END ===")
       }
-      commitValidsFinal(firstInvalidIdx) := ExceptionCode.CheckCommit(invalidEntry.exceptionCode)
-
-    }.elsewhen(!commitJumpValid(firstInvalidIdx)) {
-      // 分支预测失败
+      commitValidsFinal(firstInvalidIdx) := !io.newException.interrupt
+      recoverWire := "b111".U
       
+    }.otherwise {
+      // 分支预测失败，需要自己重定向
+      assert(!commitJumpValid(firstInvalidIdx))
+      recoverWire := "b011".U
+
       commitValidsFinal(firstInvalidIdx) := true.B
+      ctrlIO.redirect.valid := true.B
+
       when(invalidEntry.jumpTargetError) {
         // 3. 跳转地址预测错误
         DebugUtils.Print(cf"RobIdx JumpTarget Error, New Target 0x${invalidEntry.jumpTarget}%x")
-        io.redirect.target := invalidEntry.jumpTarget
+        ctrlIO.redirect.target := invalidEntry.jumpTarget
       }.otherwise {
         // 1. 预测跳转，实际不跳转 2. 预测不跳转，实际跳转
-        DebugUtils.Print(cf"RobIdx Jump Error, New Jump ${invalidEntry.realJump} 0x${io.redirect.target}%x")
+        DebugUtils.Print(cf"RobIdx Jump Error, New Jump ${invalidEntry.realJump} 0x${ctrlIO.redirect.target}%x")
         assert(invalidEntry.realJump =/= invalidEntry.predictJump)
-        io.redirect.target := Mux(
+        ctrlIO.redirect.target := Mux(
           invalidEntry.realJump,
           invalidEntry.jumpTarget,
           invalidEntry.vaddr + 4.U
@@ -298,8 +295,6 @@ class ReorderBuffer extends Module with InstructionConstants {
       } 
     }
   }
-
-  io.robEmpty := head === tail
 
   // 这里没有用寄存器暂存输出，时序扛不住的话需要加上
   commitsIO.zip(commitValidsFinal).zip(commitEntry).foreach {
@@ -330,20 +325,26 @@ class ReorderBuffer extends Module with InstructionConstants {
 
   head := head + PopCount(commitValidsFinal)
 
-  val flush = ctrlIO.flushPipeline
-  
   val recover = RegInit(0.U(3.W))
-
   when (recover =/= 0.U) {
-    tail := head
-    head := head
+    tail := 0.U
+    head := 0.U
     recover := recover >> 1
+
+    if (DebugConfig.printFlush) {
+      DebugUtils.Print(cf"ROB RECOVERING")
+    }
   } 
-  when (flush) {
-    recover := "b111".U
-    tail := head
-    head := head
+  when (recoverWire =/= 0.U) {
+    tail := 0.U
+    head := 0.U
+    recover := recoverWire
+
+    if (DebugConfig.printFlush) {
+      DebugUtils.Print(cf"ROB RECOVERING")
+    }
   }
+  
 
   if (DebugConfig.printRob) {
     DebugUtils.Print(cf"RobIdx head: ${head} tail: ${tail} count: ${io.count}")

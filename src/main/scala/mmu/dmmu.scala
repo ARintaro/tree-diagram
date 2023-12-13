@@ -102,6 +102,7 @@ class DataMemoryManagementUnit extends Module {
     }
     is (level3) {
       busIO.addr := Cat(walkResult.ppn1, walkResult.ppn0, vaddr.vpn0, 0.U(2.W))(31, 0)
+      assert(AddressException.CheckValidRamAddress(busIO.addr))
       busIO.stb := true.B
       when (busIO.ack) {
         walkState := over
