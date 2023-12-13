@@ -1,4 +1,4 @@
-VIVADO_DIR ?= ./build/vivado
+VIVADO_DIR ?= /mnt/e/computer/cod23-grp67/thinpad_top.srcs/sources_1/new
 VERILATOR_DIR ?= /mnt/d/ubuntu-tmp/Guaning/general
 TEST_DIR ?= ./build/test
 CONFIG_DEBUG ?= true

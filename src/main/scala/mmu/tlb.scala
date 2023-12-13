@@ -9,7 +9,7 @@ import MemoryManagementConstants._
 import AddressException._
 
 object MemoryManagementConstants {
-  val TLB_ENTRY_NUM = 64
+  val TLB_ENTRY_NUM = 4
   val TLB_ENTRY_WIDTH = log2Ceil(TLB_ENTRY_NUM)
 
   val ASID_WIDTH = 9.W
