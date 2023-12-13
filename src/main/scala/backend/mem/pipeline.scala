@@ -218,7 +218,6 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
         f3_paddr_wire := f2_vaddr
         f3_paddr_valid_wire := true.B
       }.elsewhen(tlb.io.result.hit) {
-        // 暂时关闭tlb
         val pte = tlb.io.result.pte
         f3_paddr_wire := Cat(pte.ppn1, pte.ppn0, f2_vaddr(11, 0))(31, 0)
         f3_paddr_valid_wire := true.B
@@ -244,13 +243,13 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
       f3_paddr_wire := f3_paddr
 
       when(dmmu.io.ack && !f3_paddr_valid) {
-        f3_paddr_valid := true.B
+        f3_paddr_valid := !dmmu.io.exception.valid
         val pte = dmmu.io.entry
         f3_paddr := Cat(pte.ppn1, pte.ppn0, f2_vaddr(11, 0))(31, 0)
         f3_exception := dmmu.io.exception
 
         if (DebugConfig.printPageWalk) {
-          DebugUtils.Print(cf"[Mem Pipe] Page Walk Ack 0x${f3_vaddr}%x -> 0x${f3_paddr}%x")
+          DebugUtils.Print(cf"[Mem Pipe] Page Walk Ack 0x${f3_vaddr}%x -> 0x${f3_paddr}%x, exception ${dmmu.io.exception}")
         }
 
         when (pte.V && !f3_exception.valid) {

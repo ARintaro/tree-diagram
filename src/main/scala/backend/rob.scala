@@ -308,7 +308,7 @@ class ReorderBuffer extends Module with InstructionConstants {
   io.commitsStoreBuffer.zip(commitValidsFinal).zip(commitEntry).foreach {
     case ((out, valid), entry) => {
       // out.idx := entry.storeBufferIdx
-      out.valid := (valid && (entry.storeType === STORE_RAM || entry.storeType === STORE_MMIO))
+      out.valid := (valid && (entry.storeType === STORE_RAM || entry.storeType === STORE_MMIO) && !entry.exception)
     }
   }
 

@@ -234,8 +234,13 @@ class CompressedStoreBuffer(findPortNum : Int) extends Module {
   })
 
   val stores = Reg(Vec(BackendConfig.storeBufferSize, new StoreIns))
+
+  
+
   val valid = RegInit(0.U(BackendConfig.storeBufferSize.W))
   val commited = RegInit(0.U(BackendConfig.storeBufferSize.W))
+
+  assert(!commited(0) || AddressException.CheckValidAddress(stores(0).paddr))
 
   val firstEmptyIdx = PriorityEncoder(~valid)
 
@@ -261,6 +266,9 @@ class CompressedStoreBuffer(findPortNum : Int) extends Module {
   val busBusy = RegInit(false.B)
   val sramAcked = RegInit(false.B)
   val cacheAcked = RegInit(false.B)
+
+  
+
   when (busBusy) {
     val sramAck = sramAcked | busIO.ack
     val cacheAck = cacheAcked | io.cache.ack
@@ -299,6 +307,8 @@ class CompressedStoreBuffer(findPortNum : Int) extends Module {
     }
   }
 
+  
+
 
   when (deq) {
     for (i <- 0 until BackendConfig.storeBufferSize - 1) {
@@ -314,9 +324,9 @@ class CompressedStoreBuffer(findPortNum : Int) extends Module {
     stores(enqIdx) := io.news.store
 
     if (DebugConfig.printStoreBuffer) {
-      // printf(
-      //   cf"store buffer enq, paddr: 0x${io.news.store.paddr}%x, 0xvalue: ${io.news.store.value}%x, bytes: ${io.news.store.bytes}\n"
-      // )
+      DebugUtils.Print(
+        cf"store buffer enq, paddr: 0x${io.news.store.paddr}%x, 0xvalue: ${io.news.store.value}%x, bytes: ${io.news.store.bytes}\n"
+      )
     }
   }
 

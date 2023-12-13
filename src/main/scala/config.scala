@@ -15,8 +15,8 @@ object DebugConfig {
   // 1520984
 
   var printPart = true
-  var printBegin = 20327615.U
-  var printEnd = 20337615.U
+  var printBegin = "h01960000".U
+  var printEnd = "h02000000".U
 
   var printRenameTable = false
   var printRenameUnitIn = false
@@ -38,7 +38,7 @@ object DebugConfig {
   val printRob = true
   val printRobNew = false
   val printPipeIns = false
-  val printStoreBuffer = false
+  val printStoreBuffer = true
 
   val printException = true
 

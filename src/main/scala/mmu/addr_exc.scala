@@ -36,7 +36,7 @@ object AddressException {
   }
 
   def CheckValidAddress(paddr: UInt): Bool = {
-    return (CheckValidAddress(paddr) || (paddr & UART_MASK.U) === UART_START.U ||
+    return (CheckValidRamAddress(paddr) || (paddr & UART_MASK.U) === UART_START.U ||
       (paddr & TIMER_MASK.U) === TIMER_START.U) // TODO: 其他外设
   }
 
