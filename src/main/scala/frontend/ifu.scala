@@ -12,7 +12,6 @@ class InstructionFetchUnit extends Module {
   val io = IO(new Bundle {
     val fetch = Vec(FrontendConfig.decoderNum, Decoupled(new RawInstruction()))
 
-    
   })
 
   val sramBusIO = IO(Vec(2, BusMasterInterface()))
@@ -47,7 +46,7 @@ class InstructionFetchUnit extends Module {
 
   fetchQueue.ctrlIO.flush := ctrlIO.flush
   immu.ctrlIO.clearTLB := ctrlIO.clearTLB
-  icache.ctrlIO.clear := ctrlIO.clearIcache
+  icache.ctrlIO.clear := ctrlIO.clearIcache | ctrlIO.clearTLB
 
   // flush时 fetchQueue会拒绝输入，icache无所谓flush
   icache.ctrlIO.flush := false.B
@@ -61,25 +60,17 @@ class InstructionFetchUnit extends Module {
 
   // 取指二阶段
   icache.f2_io.paddr := immu.f2_io.paddr
+  icache.f2_io.vaddr := immu.f2_io.vaddr
 
-  
   when (immu.f2_io.exception.valid === false.B) {
     // immu 未出现异常
 
     // 在取指二阶段进行快速解码
-    val fetchPC =
-      (0 until CacheConfig.icache.cacheLineSize).map(i => immu.f2_io.vaddr + (i * 4).U)
-    val preDecs = VecInit(
-      Seq.fill(CacheConfig.icache.cacheLineSize)(Module(new PreDecoder).io)
-    )
-    for (i <- 0 until CacheConfig.icache.cacheLineSize) {
-      preDecs(i).inst := icache.f2_io.ins(i)
-      preDecs(i).vaddr := fetchPC(i)
-    }
+    val fetchPC = (0 until CacheConfig.icache.cacheLineSize).map(i => immu.f2_io.vaddr + (i * 4).U)
 
     // 判断是否有Jump，有的话更改发起重定向请求
     // TODO : 分支预测
-    val isJump = preDecs.map(_.jump)
+    val isJump = icache.f2_io.ins.map(x => (x.jumpType === JumpType.branch || x.jumpType === JumpType.jal) )
     val jumpScan = isJump.scanLeft(false.B)(_ || _).tail
     val jumpValid = (false.B +: jumpScan.init).map(!_)
 
@@ -95,7 +86,10 @@ class InstructionFetchUnit extends Module {
     when(anyValid) {
       // 取出有效指令
       pc.io.reqs(0).valid := true.B
-      pc.io.reqs(0).target := preDecs(lastValidIdx).newVaddr
+      pc.io.reqs(0).target := icache.f2_io.ins(lastValidIdx).target << 2
+
+      DebugUtils.Print(cf"Frontend Redirect ${pc.io.reqs(0).valid} addr 0x${pc.io.reqs(0).target}%x")
+
     }.otherwise {
       pc.io.reqs(0).valid := false.B
       pc.io.reqs(0).target := DontCare
@@ -104,9 +98,9 @@ class InstructionFetchUnit extends Module {
     for (i <- 0 until CacheConfig.icache.cacheLineSize) {
       fetchQueue.io.enq(i).valid := fetchValid(i)
       fetchQueue.io.enq(i).bits.vaddr := fetchPC(i)
-      fetchQueue.io.enq(i).bits.inst := icache.f2_io.ins(i)
-      fetchQueue.io.enq(i).bits.jump := Mux(preDecs(i).jumpType === JumpType.jal, false.B, preDecs(i).jump)
-      fetchQueue.io.enq(i).bits.jumpTarget := preDecs(i).newVaddr
+      fetchQueue.io.enq(i).bits.inst := icache.f2_io.ins(i).inst
+      fetchQueue.io.enq(i).bits.jump := icache.f2_io.ins(i).jumpType === JumpType.branch
+      fetchQueue.io.enq(i).bits.jumpTarget := icache.f2_io.ins(i).target << 2
       fetchQueue.io.enq(i).bits.exception := false.B
       fetchQueue.io.enq(i).bits.exceptionCode := 0.U
     }

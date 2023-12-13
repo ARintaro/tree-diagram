@@ -14,7 +14,7 @@ object DebugConfig {
   var debug = false
   // 1520984
 
-  var printPart = true
+  var printPart = false
   var printBegin = 32225078.U
   var printEnd = 32225200.U
 
@@ -32,20 +32,20 @@ object DebugConfig {
   var printLreg = false
   var printFetch = false
   var printRedirect = true
-  var printFlush = true
+  var printFlush = false
   var printBusError = false
 
-  val printRob = true
+  val printRob = false
   val printRobNew = false
   val printPipeIns = false
-  val printStoreBuffer = true
+  val printStoreBuffer = false
 
-  val printException = true
+  val printException = false
 
   var printBusy = false
   val printWakeup = false
   val printMem = false
-  val printPageWalk = true
+  val printPageWalk = false
 
   val printTimer = false
   val printDecode = false

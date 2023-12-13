@@ -15,24 +15,20 @@ object JumpType extends ChiselEnum {
 }
 
 class PreDecoder extends Module {
-
   val io = IO(new Bundle {
     val inst = Input(UInt(InsConfig.INS_WIDTH))
     val vaddr = Input(UInt(BusConfig.ADDR_WIDTH))
 
-    val jumpType = Output(JumpType())
-
-    val newVaddr = Output(UInt(BusConfig.ADDR_WIDTH))
-    val jump = Output(Bool())
+    val out = Output(new CacheInstruction)
   })
 
   val opcode = io.inst(6, 0)
   val data = io.inst
 
   // 默认为None
-  io.jumpType := JumpType.none
-  io.newVaddr := io.vaddr + 4.U
-  io.jump := false.B
+  io.out.jumpType := JumpType.none
+  io.out.target := (io.vaddr + 4.U)(31, 2)
+  io.out.inst := io.inst
 
   val immTypeJ =
     Cat(Fill(12, data(31)), data(19, 12), data(20), data(30, 25), data(24, 21), 0.U(1.W))
@@ -42,18 +38,15 @@ class PreDecoder extends Module {
 
   switch(opcode) {
     is(InsConfig.Opcode.jal) {
-      io.jumpType := JumpType.jal
-      io.newVaddr := io.vaddr + immTypeJ
-      io.jump := true.B
+      io.out.jumpType := JumpType.jal
+      io.out.target := (io.vaddr + immTypeJ)(31, 2)
     }
     is(InsConfig.Opcode.jalr) {
-      io.jumpType := JumpType.jalr
-      io.jump := false.B
+      io.out.jumpType := JumpType.jalr
     }
     is(InsConfig.Opcode.branch) {
-      io.jumpType := JumpType.branch
-      io.newVaddr := io.vaddr + immTypeB
-      io.jump := true.B
+      io.out.jumpType := JumpType.branch
+      io.out.target := (io.vaddr + immTypeB)(31, 2)
     }
   }
 

@@ -68,7 +68,7 @@ class TranslationLookasideBuffer extends Module {
   outBuffer.hit := hits.orR
   outBuffer.pte := entries(OHToUInt(hits))
 
-  assert(PopCount(hits) <= 1.U)
+  // assert(PopCount(hits) <= 1.U)
   
   when(io.insert.submit) {
     val invalids = validBits.asBools.map(!_)

@@ -4,6 +4,13 @@ import chisel3._
 import chisel3.util._
 import dataclass.data
 
+class CacheInstruction extends Bundle {
+  val inst = UInt(32.W)
+  val target = UInt(30.W)
+  val jumpType = JumpType()
+}
+
+
 class IcacheConfig(_wayNum : Int, _cacheLineSize : Int, _cacheLineNum : Int) {
   // 组相连路数
   val wayNum = _wayNum
@@ -14,8 +21,9 @@ class IcacheConfig(_wayNum : Int, _cacheLineSize : Int, _cacheLineNum : Int) {
   // Cacheline 的数量（需要为2的次幂）
   val cacheLineNum = _cacheLineNum
 
+  val cacheIns = WireInit(0.U.asTypeOf(new CacheInstruction))
   // 指令宽度(bit)
-  val insWidth = InsConfig.INS_WIDTH.get
+  val insWidth = 1 << log2Ceil(cacheIns.asUInt.getWidth)
 
   // dataRam的参数，注意这些参数仅对一路
   // 最终实例化时需要乘以路数
@@ -26,7 +34,7 @@ class IcacheConfig(_wayNum : Int, _cacheLineSize : Int, _cacheLineNum : Int) {
 
   // tagRam的参数，注意这些参数仅对一路
   // 最终实例化时需要乘以路数
-  val tagRamReadWidth = insWidth
+  val tagRamReadWidth = 32
   val tagRamWriteWidth = tagRamReadWidth
 
   // 地址中构成一个cacheline中地址的部分
@@ -115,7 +123,9 @@ class InstructionCache(config : IcacheConfig) extends Module {
     // 上周期请求pc对应的物理地址
     val paddr = Flipped(Valid(UInt(BusConfig.ADDR_WIDTH)))
 
-    val ins = Output(Vec(config.cacheLineSize, UInt(InsConfig.INS_WIDTH)))
+    val vaddr = Input(UInt(BusConfig.ADDR_WIDTH))
+
+    val ins = Output(Vec(config.cacheLineSize, new CacheInstruction))
     // 指令有效
     val valid = Output(Vec(config.cacheLineSize, Bool()))
   })
@@ -152,8 +162,10 @@ class InstructionCache(config : IcacheConfig) extends Module {
   // 是否需要查询内存
   val missed = WireInit(false.B)
   // 查询的物理地址
-  val sramAddr = Wire(UInt(BusConfig.ADDR_WIDTH))
-  sramAddr := DontCare
+  val sramVaddr = Wire(UInt(BusConfig.ADDR_WIDTH))
+  sramVaddr := DontCare
+  val sramPaddr = Wire(UInt(BusConfig.ADDR_WIDTH))
+  sramPaddr := DontCare
   // 当sram查询返回时，写入tag的地址
   val writeTagAddr = Wire(UInt(tagRam.config.writeAddrWidth.W))
   writeTagAddr := DontCare
@@ -163,6 +175,7 @@ class InstructionCache(config : IcacheConfig) extends Module {
   // 当sram查询返回时，写入data的地址
   val writeDataAddr = Wire(UInt(dataRam.config.writeAddrWidth.W))
   writeDataAddr := DontCare
+
   
 
   // [31, 12] TAG
@@ -193,7 +206,7 @@ class InstructionCache(config : IcacheConfig) extends Module {
       // (cacheLineSize, cacheLineSize + tagSize - 1)为tag位
       val tags = rawTags.map(_(config.tagTagEnd, config.tagTagBegin))
       val valids = rawTags.map(_(config.tagValidEnd, config.tagValidBegin))
-      val datas = dataRam.io.readData.asTypeOf(Vec(config.wayNum, Vec(config.cacheLineSize, UInt(config.insWidth.W))))
+      val datas = dataRam.io.readData.asTypeOf(Vec(config.wayNum, Vec(config.cacheLineSize, new CacheInstruction)))
       // 80000  0001
       //wire?
       val tagEqual = VecInit(tags.map(_ === targetTag))
@@ -206,33 +219,21 @@ class InstructionCache(config : IcacheConfig) extends Module {
 
       // assert(f2_io.paddr.bits === 0.U || PopCount(tagEqual) <= 1.U)
 
-      when (PopCount(tagEqual) > 1.U) {
-        DebugUtils.Print(cf"Icache Error, paddr 0x${f2_io.paddr.bits}%x")
-        DebugUtils.Print(cf"tag : ${tags}")
-        DebugUtils.Print(cf"valids : ${valids}")
-        DebugUtils.Print(cf"datas : ${datas}")
-        DebugUtils.Print(cf"Icache Error End")
-      }
-
       // 如果命中，选中命中的way
       // 如果没命中，随机挑选一个way
       val hitTag = Mux1H(select, tags)
       val hitValid = Mux1H(select, valids)
       val hitData = Mux1H(select, datas)
 
-      // 0 1 2 3
-      // 0 0 0 1
-      // 32 32 32 32
-      // 0 32 64 96
-      // 2^5
       when (anyHit && hitValid(cachelineIndex)) {
         // 缓存命中
         f2_io.valid := (hitValid >> cachelineIndex).asTypeOf(Vec(config.cacheLineSize, Bool()))
-        f2_io.ins := (hitData.asUInt >> (cachelineIndex << log2Ceil(config.dataRamWriteWidth))).asTypeOf(Vec(config.cacheLineSize, UInt(config.insWidth.W)))
+        f2_io.ins := (hitData.asUInt >> (cachelineIndex << log2Ceil(config.dataRamWriteWidth))).asTypeOf(Vec(config.cacheLineSize, new CacheInstruction))
       } .otherwise {
         // 缓存未命中
         missed := true.B
-        sramAddr := f2_io.paddr.bits
+        sramPaddr := f2_io.paddr.bits
+        sramVaddr := f2_io.vaddr
 
         writeTagAddr := config.GetTagRamWriteAddr(index, way)
 
@@ -257,7 +258,7 @@ class InstructionCache(config : IcacheConfig) extends Module {
     val acked = RegInit(false.B)
 
     // 查询的物理地址
-    val sramAddrReg = Reg(UInt(BusConfig.ADDR_WIDTH))
+    val sramPaddrReg = Reg(UInt(BusConfig.ADDR_WIDTH))
     // 当sram查询返回时，写入tag的地址
     val writeTagAddrReg = Reg(UInt(tagRam.config.writeAddrWidth.W))
     // 当sram查询返回时，写入tag的数据
@@ -265,10 +266,12 @@ class InstructionCache(config : IcacheConfig) extends Module {
     // 当sram查询返回时，写入data的地址
     val writeDataAddrReg = Reg(UInt(dataRam.config.writeAddrWidth.W))
 
+    val sramVaddrReg = Reg(UInt(BusConfig.ADDR_WIDTH))
+
 
     when (busy) {
       sramIO.stb := true.B
-      sramIO.addr := sramAddrReg
+      sramIO.addr := sramPaddrReg
       sramIO.dataBytesSelect := "b1111".U
       sramIO.dataMode := false.B
       assert(AddressException.CheckValidRamAddress(sramIO.addr))
@@ -279,35 +282,48 @@ class InstructionCache(config : IcacheConfig) extends Module {
         acked := true.B
       }
     } .otherwise {
+
+      val decoder = Module(new PreDecoder)
+
+      decoder.io.inst := sramIO.dataRead
+      decoder.io.vaddr := sramVaddrReg
+
       when (acked) {
         tagRam.io.writeAddr := writeTagAddrReg
         tagRam.io.writeData := writeTagDataReg
         tagRam.io.writeEnable := true.B
 
         dataRam.io.writeAddr := writeDataAddrReg
-        dataRam.io.writeData := sramIO.dataRead
+        dataRam.io.writeData := decoder.io.out.asUInt
+
         dataRam.io.writeEnable := true.B
 
         acked := false.B
       }
 
       when (missed) {
-        when (acked && sramAddrReg === f2_io.paddr.bits) {
+        when (acked && sramPaddrReg === f2_io.paddr.bits) {
           // 如果这周期请求地址与正在写回的地址相同
-          f2_io.ins(0) := sramIO.dataRead
+          f2_io.ins(0) := decoder.io.out
           f2_io.valid(0) := true.B
+
+          DebugUtils.Print(cf"icache instant issue vaddr 0x${sramVaddrReg}%x paddr 0x${f2_io.paddr.bits}%x ${decoder.io.out}")
+        
         } .otherwise {
-          sramAddrReg := sramAddr
+          sramPaddrReg := sramPaddr
+          sramVaddrReg := sramVaddr
           writeTagAddrReg := writeTagAddr
           writeTagDataReg := writeTagData
           writeDataAddrReg := writeDataAddr
+
+          DebugUtils.Print(cf"icache miss vaddr 0x${sramVaddr}%x paddr 0x${sramPaddr}%x")
 
           assert(AddressException.CheckValidRamAddress(sramIO.addr))
 
           busy := true.B
 
           sramIO.stb := true.B
-          sramIO.addr := sramAddr
+          sramIO.addr := sramPaddr
           sramIO.dataBytesSelect := "b1111".U
           sramIO.dataMode := false.B
         }

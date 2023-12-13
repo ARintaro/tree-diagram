@@ -186,8 +186,6 @@ class ReorderBuffer extends Module with InstructionConstants {
   // 处理Commit
   val inQueueMask = MaskUtil.GetValidMask(head, tail)
 
-  DebugUtils.Print(cf"RobIdx head: ${head} tail: ${tail} mask: ${Binary(inQueueMask)}")
-
   val commitValidsOne = Wire(Vec(BackendConfig.maxCommitsNum, Bool()))
   val commitEntry = Wire(Vec(BackendConfig.maxCommitsNum, new RobEntry))
 
