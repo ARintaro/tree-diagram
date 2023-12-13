@@ -299,7 +299,7 @@ class ReorderBuffer extends Module with InstructionConstants {
   // 这里没有用寄存器暂存输出，时序扛不住的话需要加上
   commitsIO.zip(commitValidsFinal).zip(commitEntry).foreach {
     case ((out, valid), entry) => {
-      out.valid := valid && entry.writeRd
+      out.valid := valid && entry.writeRd && !entry.exception
       out.pregIdx := entry.rdPidx
       out.lregIdx := entry.rdLidx
     } 

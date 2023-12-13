@@ -15,8 +15,8 @@ object DebugConfig {
   // 1520984
 
   var printPart = true
-  var printBegin = "h01960000".U
-  var printEnd = "h02000000".U
+  var printBegin = "h01b80000".U
+  var printEnd = "h01b90000".U
 
   var printRenameTable = false
   var printRenameUnitIn = false
