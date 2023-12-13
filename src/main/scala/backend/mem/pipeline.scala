@@ -266,7 +266,6 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
       io.devBus.addr := f3_word_paddr_wire
       when(f2_memType) {
         // store
-        // TODO : MMIO_BUFFER
         f3_store_type_wire := Mux(io.devBus.mmio, STORE_MMIO, STORE_RAM)
         io.newStore.valid := true.B
         when(io.newStore.succ) {
@@ -288,7 +287,6 @@ class MemoryPipeline(index: Int) extends Module with InstructionConstants {
           when((io.findStore.bytes & f2_bytes) === f2_bytes) {
             // 如果找到的修改是load的子集, 可以直接使用数据
             f3_valid := true.B
-            // TODO: NOTE Half、Byte等需要在这里变换数据
             f3_data := io.findStore.value
             f3_bus_data := false.B
             f3_wakeup_wire := true.B

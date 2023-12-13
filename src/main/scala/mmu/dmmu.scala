@@ -16,6 +16,8 @@ class DataMemoryManagementUnit extends Module {
     val dataMode = Input(Bool())
     val vaddr = Input(new VirtualAddress)
 
+    // val ready = Output(Bool())
+
     val ack = Output(Bool())
     val entry = Output(new PageTableEntry)
     val exception = Output(new Exception)
@@ -127,6 +129,10 @@ class DataMemoryManagementUnit extends Module {
         io.exception.code := Mux(dataMode, EC_STORE_PF, EC_LOAD_PF)
       }
     }
+  }
+
+  when(ctrlIO.flush) {
+    walkState := idle
   }
 
 }
