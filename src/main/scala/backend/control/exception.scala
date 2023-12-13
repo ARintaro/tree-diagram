@@ -225,7 +225,7 @@ class ExceptionUnit extends Module with InstructionConstants {
   io.interruptInitializing := MuxCase(
     false.B,
     Seq(
-      (globalPrivilegeLevel === M_LEVEL) -> (mInterrupt & status.mie),
+      // (globalPrivilegeLevel === M_LEVEL) -> (mInterrupt & status.mie),
       (globalPrivilegeLevel === S_LEVEL) -> (mInterrupt | (sInterrupt & status.sie)),
       (globalPrivilegeLevel === U_LEVEL) -> (mInterrupt | sInterrupt)
     )
