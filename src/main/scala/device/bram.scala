@@ -35,7 +35,7 @@ class BramConfig(_writeWidth : Int, _writeDepth : Int, _readWidth : Int) {
   require(isPow2(writeDepth))   
   require(isPow2(writeWidth))  
   require(isPow2(readWidth))  
-  require(readWidth >= writeWidth)
+  // require(readWidth >= writeWidth)
 }
 
 object BramConfig {

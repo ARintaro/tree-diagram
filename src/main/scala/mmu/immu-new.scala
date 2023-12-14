@@ -43,6 +43,7 @@ class InstructionMemoryManagementUnitNew extends Module {
   val walkResultTag = RegInit(0.U.asTypeOf(new TLBTag))
   val walkResult = RegInit(0.U.asTypeOf(new PageTableEntry))
   val walkException = RegInit(0.U.asTypeOf(new Exception))
+  val walkResultVaddr = RegInit(0.U(32.W))
 
   
 
@@ -95,6 +96,7 @@ class InstructionMemoryManagementUnitNew extends Module {
         walkResultTag := f2_tag
         walkResultValid := false.B
         walkException.valid := false.B
+        walkResultVaddr := f2_io.vaddr
 
       }
     }
@@ -106,10 +108,11 @@ class InstructionMemoryManagementUnitNew extends Module {
 
   val walkState = RegInit(idle)
   busIO.master_turn_off()
-
+  // 0x80404014
   tlb.io.insert.tag := DontCare
   tlb.io.insert.entry := DontCare
   tlb.io.insert.submit := false.B
+  
 
   switch(walkState) {
     is(idle) {
@@ -132,11 +135,13 @@ class InstructionMemoryManagementUnitNew extends Module {
       when (busIO.ack) {
         walkState := level2
       }
+
     }
     is(level2) {
       val walkResultWire = busIO.dataRead.asTypeOf(new PageTableEntry)
       busIO.addr := Cat(walkResultWire.ppn1, walkResultWire.ppn0, walkResultTag.vpn0, 0.U(2.W))(31, 0)
       walkResult := walkResultWire
+
 
       when (walkResultWire.V) {
         when(CheckValidRamAddress(busIO.addr)){

@@ -15,8 +15,8 @@ object DebugConfig {
   // 1520984
 
   var printPart = false
-  var printBegin = 32225078.U
-  var printEnd = 32225200.U
+  var printBegin = "h60000".U
+  var printEnd = "h70000".U
 
   var printRenameTable = false
   var printRenameUnitIn = false
@@ -70,6 +70,8 @@ object BusConfig {
   val UART_MASK = 0xFFFF0000L
   val TIMER_START = 0x02000000L
   val TIMER_MASK = 0x03FF0000L
+  val VRAM_SRART = 0x81000000L
+  val VRAM_MASK = 0xffff0000L
 }
 
 object InsConfig {
@@ -180,4 +182,14 @@ object BackendConfig {
 
   // VIPT Require
   require(dcacheIndexBegin < 12)
+}
+
+object VGAConfig {
+  val compressionRatio = 8
+  val vramWriteWidth = 32
+  val vramReadWidth = 8
+  val hmax = 1040
+  val vmax = 666
+  val vramWriteDepth =
+    1 << log2Ceil(vramReadWidth * (hmax / compressionRatio) * (vmax / compressionRatio) / vramWriteWidth)
 }

@@ -8,6 +8,7 @@ class TreeDiagram extends Module {
     val baseRam = new ExternalSramInterface
     val extRam = new ExternalSramInterface
     val uart = new ExternalUartInterface
+    val vga = new ExternalVGAInterface
   })
 
   val ifu = Module(new InstructionFetchUnit)
@@ -16,6 +17,7 @@ class TreeDiagram extends Module {
 
   DeviceUtils.AddExternalSram(io.baseRam, "baseRam")
   DeviceUtils.AddExternalSram(io.extRam, "extRam")
+  DeviceUtils.AddExternalVGA(io.vga)
 
   if (GenConfig.innerUartModel) {
     io.uart.txd := DontCare
@@ -31,6 +33,7 @@ class TreeDiagram extends Module {
   val extRam = Module(new SramWithArbiter("extRam", busNum))
   val uart = Module(new UartWithArbiter(devBusNum))
   val timer = Module(new TimerWithArbiter(devBusNum))
+  val vga = Module(new VGAWithArbiter(devBusNum))
 
   // 两条纯内存总线
   // 0: icache
@@ -54,7 +57,7 @@ class TreeDiagram extends Module {
   backend.io.memBus <> memBuses(2).io.master
 
   // 带设备总线，用于mem_pipeline和storebuffer
-  val devBuses = Seq.fill(2)(Module(new BusMux(4)))
+  val devBuses = Seq.fill(2)(Module(new BusMux(5)))
 
   for (i <- 0 until 2) {
     devBuses(i).io.slaves(0) <> baseRam.io.masters(i)
@@ -72,6 +75,10 @@ class TreeDiagram extends Module {
     devBuses(i).io.slaves(3) <> timer.io.masters(i)
     devBuses(i).io.allocate(3).start := BusConfig.TIMER_START.U
     devBuses(i).io.allocate(3).mask := BusConfig.TIMER_MASK.U
+
+    devBuses(i).io.slaves(4) <> vga.io.masters(i)
+    devBuses(i).io.allocate(4).start := BusConfig.VRAM_SRART.U
+    devBuses(i).io.allocate(4).mask := BusConfig.VRAM_MASK.U
   }
   
 

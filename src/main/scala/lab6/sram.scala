@@ -39,6 +39,7 @@ class SramController(name : String) extends Module {
           curState := writting1
         } .otherwise {
           // Reading
+          externSram.io.bytesDisable := "b0000".U
           externSram.io.readDisable := false.B
           curState := reading
         }
@@ -50,6 +51,7 @@ class SramController(name : String) extends Module {
 
       resultReg := externSram.io.dataRead
       busIO.dataRead := externSram.io.dataRead
+      externSram.io.bytesDisable := "b0000".U
 
       busIO.ack := true.B
       curState := done

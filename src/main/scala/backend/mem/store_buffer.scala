@@ -236,7 +236,6 @@ class CompressedStoreBuffer(findPortNum : Int) extends Module {
   val stores = Reg(Vec(BackendConfig.storeBufferSize, new StoreIns))
 
   
-
   val valid = RegInit(0.U(BackendConfig.storeBufferSize.W))
   val commited = RegInit(0.U(BackendConfig.storeBufferSize.W))
 

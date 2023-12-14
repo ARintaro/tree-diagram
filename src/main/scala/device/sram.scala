@@ -108,5 +108,13 @@ object DeviceUtils {
     BoringUtils.addSink(io.txd, "uart_txd")
   }
 
-
+  def AddExternalVGA(io : ExternalVGAInterface) : Unit = {
+    BoringUtils.addSink(io.videoRed, "vga_videoRed")
+    BoringUtils.addSink(io.videoGreen, "vga_videoGreen")
+    BoringUtils.addSink(io.videoBlue, "vga_videoBlue")
+    BoringUtils.addSink(io.videoHsync, "vga_videoHsync")
+    BoringUtils.addSink(io.videoVsync, "vga_videoVsync")
+    BoringUtils.addSource(io.videoClk, "vga_videoClk")
+    BoringUtils.addSink(io.videoDe, "vga_videoDe")
+  }
 }

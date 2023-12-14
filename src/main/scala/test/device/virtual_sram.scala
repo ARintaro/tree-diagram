@@ -12,19 +12,23 @@ class VirtualSram extends Module {
 
   val mem = SyncReadMem(pow(2, 20).toInt, UInt(32.W))
   val init :: writing :: reading :: Nil = Enum(3)
+  val bytes = RegInit(0.U(4.W))
+
 
   val extendedByteDisable = Cat(
-    Fill(8, io.bytesDisable(3)),
-    Fill(8, io.bytesDisable(2)),
-    Fill(8, io.bytesDisable(1)),
-    Fill(8, io.bytesDisable(0))
+    Fill(8, bytes(3)),
+    Fill(8, bytes(2)),
+    Fill(8, bytes(1)),
+    Fill(8, bytes(0))
   )
-
-  io.dataRead := mem.read(io.addr(19, 0))
+  bytes := io.bytesDisable
+  io.dataRead := mem.read(io.addr(19, 0))// | extendedByteDisable
   val state_reg = RegInit(init)
   switch(state_reg) {
     is(init) {
+
       when(!io.readDisable) {
+        // assert(bytes === "b0000".U)
         state_reg := reading
       }
       when(!io.writeDisable) {
@@ -32,6 +36,7 @@ class VirtualSram extends Module {
       }
     }
     is(reading) {
+      // assert(bytes === "b0000".U)
       state_reg := init
     }
     is(writing) {
