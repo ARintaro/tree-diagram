@@ -93,7 +93,6 @@ class BusArbiter(inputNum : Int) extends Module {
   })
 
   val busy = RegInit(false.B)
-  val acked = RegInit(false.B)
 
   val lastReq = Reg(new Bundle {
     val master = UInt(log2Ceil(inputNum).W)
@@ -126,9 +125,7 @@ class BusArbiter(inputNum : Int) extends Module {
   } .otherwise {
     val anyStb = io.masters.map(_.stb).reduce(_ || _)
 
-    acked := false.B
-
-    when (anyStb && !acked) {
+    when (anyStb) {
       val arbiter = Module(new Arbiter(new EmptyBundle, inputNum))
       arbiter.io.out.ready := true.B
 
