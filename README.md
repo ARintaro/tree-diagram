@@ -8,3 +8,5 @@ Supports the RV32I instruction set. Due to time constraints in completing the co
 As of now, the commits on the dev branch are able to boot ucore in Verilator simulation, but they still need to be debugged on an actual FPGA.
 
 A more detailed README and architectural design documents will be supplemented later.
+
+Its name tree-diagram comes from a supercomputer in a anime とある魔術の禁書目録.
