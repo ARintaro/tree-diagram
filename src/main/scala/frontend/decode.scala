@@ -87,7 +87,9 @@ class Decoder extends Module with InstructionConstants {
       csrrciPattern-> List(ALU_ADD , BRU_NONE, OP1_ZERO, OP2_RS2 , true.B , IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U                  , true.B , true.B , CSRRCI ),
       mretPattern  -> List(ALU_ADD , BRU_NONE, OP1_ZERO, OP2_ZERO, false.B, IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U                  , true.B , true.B , MRET   ),
       sretPattern  -> List(ALU_ADD , BRU_NONE, OP1_ZERO, OP2_ZERO, false.B, IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U                  , true.B , true.B , SRET   ),
-      fenceiPattern-> List(ALU_ADD , BRU_NONE, OP1_ZERO, OP2_ZERO, false.B, IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U                  , true.B , true.B , FENCEI )
+      fenceiPattern-> List(ALU_ADD , BRU_NONE, OP1_ZERO, OP2_ZERO, false.B, IMMT_NONE, false.B  , IQT_INT , false.B , MEM_WORD, 0.U                  , true.B , true.B , FENCEI ),
+      
+      cras16Pattern-> List(ALU_CSAS16, BRU_NONE, OP1_RS1, OP2_RS2, true.B, IMMT_NONE, false.B, IQT_INT, false.B, MEM_WORD, 0.U, true.B, false.B, CSRNONE)
       ))
   
 

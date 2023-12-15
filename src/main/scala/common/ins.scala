@@ -55,6 +55,8 @@ object RV32IPattern {
   val mretPattern = BitPat("b00110000001000000000000001110011")
   val sretPattern = BitPat("b00010000001000000000000001110011")
   val fenceiPattern = BitPat("b00000000000000000001000000001111")
+
+  val cras16Pattern = BitPat("b0100010??????????000?????1110111")
 }
 
 // 取指单元拉取出的指令
@@ -136,6 +138,8 @@ trait InstructionConstants {
   def ALU_SLT = 8.U(ALU_WIDTH)
   // 无符号小于
   def ALU_SLTU = 9.U(ALU_WIDTH)
+
+  def ALU_CSAS16 = 10.U(ALU_WIDTH)
 
   // MEM访存长度
   val MEM_LEN_WIDTH = 2.W
